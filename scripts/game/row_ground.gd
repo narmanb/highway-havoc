@@ -18,9 +18,18 @@ func _draw() -> void:
 	rng.seed = int(row.spec.get("deco_seed", row.index * 7919))
 	var style := row.style()
 	match row.type:
+		C.Row.WATER: _water(rng)
 		C.Row.ROAD: _road(rng)
-		C.Row.SIDEWALK: _shoulder(rng) if style == "freeway" else _sidewalk(rng)
-		C.Row.MEDIAN: _barrier(rng) if style == "barrier" else _median(rng)
+		C.Row.SIDEWALK:
+			match style:
+				"freeway": _shoulder(rng)
+				"dock": _planks(rng, true)
+				_: _sidewalk(rng)
+		C.Row.MEDIAN:
+			match style:
+				"barrier": _barrier(rng)
+				"pier": _planks(rng, false)
+				_: _median(rng)
 	# Dim everything outside the playable columns so the bounds read instantly.
 	var shade := Color(0.05, 0.06, 0.12, 0.22)
 	draw_rect(Rect2(-W, -HALF, W - C.PLAY_HALF_W, C.TILE), shade)
@@ -195,9 +204,54 @@ func _barrier(rng: RandomNumberGenerator) -> void:
 
 
 func _goal_and_button() -> void:
+	var bc := row.button_col()
+	if bc >= 0:
+		var bx := C.col_to_x(bc)
+		draw_rect(Rect2(bx - 30, -HALF + 8, 60, C.TILE - 16), Color("f2d36b"))
 	if row.is_goal:
 		var lc := row.locker_col()
 		if lc >= 0:
 			var lx := C.col_to_x(lc)
 			draw_rect(Rect2(lx - 32, -HALF + 18, 64, C.TILE - 28), Color("ffd84a"))
 			draw_rect(Rect2(lx - 28, -HALF + 22, 56, C.TILE - 36), Color("ffe98c"))
+
+
+func _water(rng: RandomNumberGenerator) -> void:
+	# Deep, dark, unmistakably lethal water with crest lines and a shadow under docks.
+	var deep := Color("16496e").lerp(Color("1a5580"), rng.randf() * 0.5)
+	draw_rect(Rect2(-W, -HALF, W * 2.0, C.TILE), deep)
+	draw_rect(Rect2(-W, -HALF, W * 2.0, 26), deep.lightened(0.06))
+	for i in 70:
+		var p := Vector2(rng.randf_range(-W, W), rng.randf_range(-HALF + 6, HALF - 6))
+		var w := rng.randf_range(10, 26)
+		draw_arc(p, w, PI * 1.15, PI * 1.85, 6, Color(0.55, 0.8, 1.0, 0.22), 2.0)
+	var ab := row.above
+	if ab != null and ab.safe():
+		draw_rect(Rect2(-W, -HALF, W * 2.0, 8), Color(0, 0, 0, 0.28))
+	if row.below != null and row.below.safe():
+		draw_rect(Rect2(-W, HALF - 4, W * 2.0, 4), Color(1, 1, 1, 0.18))
+
+
+## Wooden dock (goal / start rows) or pier (median) made of planks.
+func _planks(rng: RandomNumberGenerator, dock: bool) -> void:
+	var wood := Color("a77b4f") if dock else Color("9a7048")
+	draw_rect(Rect2(-W, -HALF, W * 2.0, C.TILE), wood.darkened(0.35))
+	var y := -HALF + 3.0
+	while y < HALF - 8:
+		var x := -W + rng.randf_range(-60, 0)
+		while x < W:
+			var ln := rng.randf_range(90, 180)
+			var c := wood.lightened(rng.randf_range(-0.08, 0.08))
+			draw_rect(Rect2(x + 1, y, ln - 2, 11), c)
+			draw_circle(Vector2(x + 6, y + 5.5), 1.3, wood.darkened(0.5))
+			draw_circle(Vector2(x + ln - 7, y + 5.5), 1.3, wood.darkened(0.5))
+			x += ln
+		y += 12.0
+	draw_rect(Rect2(-W, HALF - 9, W * 2.0, 9), Color("5d4128"))
+	draw_rect(Rect2(-W, HALF - 9, W * 2.0, 2), Color("7a5636"))
+	if not dock:
+		var px := -W
+		while px < W:
+			draw_rect(Rect2(px, HALF - 12, 8, 12), Color("4a321e"))
+			px += 120.0
+	_goal_and_button()

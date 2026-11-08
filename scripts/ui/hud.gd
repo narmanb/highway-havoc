@@ -132,7 +132,7 @@ func _process(dt: float) -> void:
 	var best_key := "rush_best" if game.mode == "rush" else "high_score"
 	best_lbl.text = "BEST %d" % maxi(int(GameState.save[best_key]), game.score.score)
 	var streak := game.score.streak
-	info_lbl.text = ("FREEWAY · " if game.district() == "freeway" else "") + "CROSSING %d" % game.crossing_number() + ("    STREAK %d  x%.1f" % [streak, game.score.multiplier()] if streak > 0 else "")
+	info_lbl.text = {"freeway": "FREEWAY · ", "riverfront": "RIVERFRONT · "}.get(game.district(), "") + "CROSSING %d" % game.crossing_number() + ("    STREAK %d  x%.1f" % [streak, game.score.multiplier()] if streak > 0 else "")
 	if game.mode == "rush":
 		rush_lbl.text = "RUSH %d/%d   %ds   %s (%s)" % [game.score.deliveries, Game.RUSH_DELIVERIES,
 			ceili(game.rush_time), game.objective.get("text", ""), game.objective_progress()]

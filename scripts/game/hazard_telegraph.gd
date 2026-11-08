@@ -87,7 +87,15 @@ func _ride_hints() -> void:
 		if rs == null:
 			continue
 		var ok := true
-		if rs.type == C.Row.ROAD:
+		if rs.is_water():
+			# A deck must be under the landing spot.
+			var lane2 := rs.lane
+			ok = false
+			for v in lane2.vehicles:
+				var fx: float = v.x + lane2.dir * lane2.speed * C.HOP_TIME
+				if p.px > fx - v.length * 0.5 + 10.0 and p.px < fx + v.length * 0.5 - 10.0:
+					ok = true
+		elif rs.type == C.Row.ROAD:
 			var pad: float = 30.0 + rs.lane.speed * C.HOP_TIME
 			ok = rs.lane.solid_overlapping(p.px - C.PLAYER_HALF_W - pad, p.px + C.PLAYER_HALF_W + pad) == null
 			if not ok and rs.lane.cargo_at(p.px) != null:

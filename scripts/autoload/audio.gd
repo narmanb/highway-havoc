@@ -3,7 +3,7 @@ extends Node
 ## Positional players pan honks and crashes toward the vehicle that made them.
 
 const NAMES := ["hop", "dash", "bonk", "honk", "crash", "skid", "nearmiss", "pickup", "ride", "button",
-	"signal_wait", "signal_walk", "signal_end", "respawn", "deliver", "ui_move", "ui_select"]
+	"signal_wait", "signal_walk", "signal_end", "respawn", "deliver", "ui_move", "ui_select", "splash", "plank"]
 
 var streams := {}
 var _flat: Array = []

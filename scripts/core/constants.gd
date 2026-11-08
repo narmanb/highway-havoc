@@ -30,7 +30,7 @@ const MIN_GAP_SECONDS := 1.0       # never less than this many seconds between v
 const MAX_LANES_WITHOUT_REFUGE := 4
 
 # Row types
-enum Row { SIDEWALK, ROAD, MEDIAN }
+enum Row { SIDEWALK, ROAD, MEDIAN, WATER }   # WATER: lethal unless standing on a floating platform
 
 static func col_to_x(col: int) -> float:
 	return (float(col) - CENTER_COL) * TILE

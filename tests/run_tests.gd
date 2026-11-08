@@ -134,6 +134,23 @@ func test_validator_rejects_unfair() -> void:
 	rows.append({"type": C.Row.SIDEWALK, "blocked": [], "button": -1, "locker": 3})
 	var res := SafePathValidator.validate({"rows": rows, "start_col": 4})
 	check(not res["ok"], "five lanes without refuge rejected")
+	# The drift search: a river with no decks can never be crossed; a solid deck can.
+	var wrows: Array = [RoadGenerator.make_start_row(rng), {"type": C.Row.WATER}, {"type": C.Row.SIDEWALK, "blocked": [], "button": -1}]
+	var empty_cov: Array = []
+	var full_cov: Array = []
+	for k in 200:
+		empty_cov.append(PackedFloat32Array())
+		full_cov.append(PackedFloat32Array([-1000.0, 1000.0]))
+	check(SafePathValidator._search_drift(wrows, {}, {1: empty_cov}, {1: 10.0}, 0, 150, 0.0) == -1, "drift search rejects a river with no decks")
+	check(SafePathValidator._search_drift(wrows, {}, {1: full_cov}, {1: 10.0}, 0, 150, 0.0) == 2, "drift search crosses a solid deck in two hops")
+	# A deck that drifts the robot into the edge before the far bank is reachable is rejected.
+	var edge_cov: Array = []
+	for k in 200:
+		edge_cov.append(PackedFloat32Array([-30.0 + k * 400.0, 30.0 + k * 400.0]))
+	check(SafePathValidator._search_drift(wrows, {}, {1: edge_cov}, {1: 400.0}, 0, 150, 0.0) == -1, "drift search never boards a deck that leaves immediately")
+	wrows[1] = {"type": C.Row.WATER, "dir": 1, "speed": 80.0, "mix": [["barge", 1.0]], "gap_min": 0.3, "gap_max": 0.3, "seed": 3}
+	# ...and a real river packed with barges is accepted.
+	check(SafePathValidator.validate({"rows": wrows, "start_col": 4})["ok"], "dense barge river accepted")
 	# A goal sidewalk that is completely blocked is rejected structurally.
 	var rows3: Array = rows.slice(0, 3)
 	rows3.append({"type": C.Row.SIDEWALK, "blocked": [0, 1, 2, 3, 4, 5, 6, 7, 8], "button": -1, "locker": 3})
@@ -153,7 +170,9 @@ func test_validator_rejects_unfair() -> void:
 func test_districts() -> void:
 	check(RoadGenerator.district_for(0, "arcade") == "downtown" and RoadGenerator.district_for(4, "arcade") == "downtown", "crossings 1-5 downtown")
 	check(RoadGenerator.district_for(5, "arcade") == "freeway" and RoadGenerator.district_for(9, "arcade") == "freeway", "crossings 6-10 freeway")
-	check(RoadGenerator.district_for(10, "arcade") == "downtown", "then back to downtown")
+	check(RoadGenerator.district_for(10, "arcade") == "riverfront" and RoadGenerator.district_for(14, "arcade") == "riverfront", "crossings 11-15 riverfront")
+	check(RoadGenerator.district_for(15, "arcade") == "downtown", "then back to downtown")
+	check(RoadGenerator.district_for(4, "rush") == "riverfront" and RoadGenerator.district_for(2, "rush") == "freeway", "rush visits all three")
 	var rng := RandomNumberGenerator.new()
 	var spec := RoadGenerator.generate(99, 5, 6, "Truck Convoy", RoadGenerator.make_start_row(rng))
 	var dirs := []

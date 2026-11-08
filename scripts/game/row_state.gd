@@ -19,14 +19,14 @@ var view: Node2D
 
 
 func blocked(col: int) -> bool:
-	if type == C.Row.ROAD:
+	if not safe():
 		return false
 	return (spec.get("blocked", []) as Array).has(col)
 
 
 ## Low flower box: walkable, the robot just stands a little higher on it.
 func planter(col: int) -> bool:
-	if type == C.Row.ROAD:
+	if not safe():
 		return false
 	return (spec.get("planters", []) as Array).has(col)
 
@@ -36,7 +36,11 @@ func style() -> String:
 
 
 func safe() -> bool:
-	return type != C.Row.ROAD
+	return type != C.Row.ROAD and type != C.Row.WATER
+
+
+func is_water() -> bool:
+	return type == C.Row.WATER
 
 
 func button_col() -> int:

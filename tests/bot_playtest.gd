@@ -4,7 +4,7 @@ extends Node
 ## Run:  godot --headless --path . --fixed-fps 60 res://tests/bot_playtest.tscn
 ## Prints a report and exits 0 if the bot made steady progress.
 
-const SIM_SECONDS := 240.0
+const SIM_SECONDS := 300.0
 const REACTION := 0.2   # the bot only reacts every 0.2 s, like a human
 
 var game: Game
@@ -17,6 +17,7 @@ var signals := 0
 var runs := 1
 var careful_deaths := -1
 var freeway_deliveries := 0
+var river_deliveries := 0
 
 
 func _ready() -> void:
@@ -31,14 +32,29 @@ func _start() -> void:
 	game.setup("arcade")
 	game.player.died.connect(func(c, _v): deaths += 1; causes[c] = causes.get(c, 0) + 1)
 	game.player.mounted.connect(func(_v): mounts += 1)
-	game.delivered.connect(func(_i): if game.segments[game.cur - 1]["spec"]["district"] == "freeway": freeway_deliveries += 1)
+	game.delivered.connect(func(_i):
+		var dname: String = game.segments[game.cur - 1]["spec"]["district"]
+		if dname == "freeway": freeway_deliveries += 1
+		if dname == "riverfront": river_deliveries += 1)
 	game.game_over.connect(func(_s): runs += 1; _start())
+
+
+## For water rows: is there a deck under x after `t` seconds (with a margin)?
+func _deck(r: int, x: float, t: float) -> bool:
+	var rs: RowState = game.row_state(r)
+	for v in rs.lane.vehicles:
+		var fx: float = v.x + rs.lane.dir * rs.lane.speed * t
+		if x > fx - v.length * 0.5 + 16.0 and x < fx + v.length * 0.5 - 16.0:
+			return true
+	return false
 
 
 func _danger(r: int, x: float, horizon: float) -> bool:
 	var rs: RowState = game.row_state(r)
 	if rs == null:
 		return true
+	if rs.is_water():
+		return not _deck(r, x, C.HOP_TIME + 0.04)
 	if rs.type != C.Row.ROAD:
 		return rs.blocked(C.x_to_col(x))
 	var a := x - C.PLAYER_HALF_W - 8.0
@@ -75,6 +91,17 @@ func _process(dt: float) -> void:
 	var x := p.px
 	var here := p.row
 	var on_road := game.row_state(here).type == C.Row.ROAD and not p.is_riding()
+	# On a floating platform: get off before being carried away.
+	if p.is_riding() and game.row_state(here).is_water():
+		var lim := C.PLAY_HALF_W - C.TILE * 0.5
+		var lane := game.row_state(here).lane
+		if absf(x) > lim - 110.0 and signf(x) == float(lane.dir):
+			for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-lane.dir, 0)]:
+				var nr: int = here + d.y
+				var nx: float = x + d.x * C.TILE
+				if nr >= game.min_row() and nr <= game.max_row() and not _danger(nr, nx, 0.45):
+					game._on_move(d)
+					return
 	var up_ok := here + 1 <= game.max_row() and not _danger(here + 1, x, 0.45)
 	# Wait for the walk signal when standing on a button pad.
 	var rs: RowState = game.row_state(here)
@@ -84,6 +111,16 @@ func _process(dt: float) -> void:
 	if up_ok:
 		game._on_move(Vector2i(0, 1))
 		return
+	if p.is_riding() and game.row_state(here).is_water() and not up_ok:
+		# Shuffle along the deck toward the centre while waiting.
+		var lane2 := game.row_state(here).lane
+		var v = p.ride_vehicle()
+		if v != null and absf(x) > 120.0:
+			var d2 := Vector2i(-signi(int(x)), 0)
+			var nx2: float = x + d2.x * C.TILE
+			if nx2 > v.x - v.length * 0.5 + 20.0 and nx2 < v.x + v.length * 0.5 - 20.0:
+				game._on_move(d2)
+				return
 	if on_road and _danger(here, x, 0.4):
 		for d in [Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
 			var nr: int = here + d.y
@@ -109,8 +146,8 @@ func _report() -> void:
 	print("  runs started: %d   deaths: %d %s" % [runs, deaths, causes])
 	print("  deliveries (all runs): %d   current score: %d   streak best: %d" % [total_deliveries, s.score, s.best_streak])
 	print("  roof mounts: %d   near misses: %d   signals used: %d" % [mounts, s.near_misses, s.signals_used])
-	print("  careful-phase deaths: %d   freeway deliveries: %d" % [careful_deaths, freeway_deliveries])
+	print("  careful-phase deaths: %d   freeway deliveries: %d   riverfront deliveries: %d" % [careful_deaths, freeway_deliveries, river_deliveries])
 	print("  generator: ", RoadGenerator.stats)
-	var ok := total_deliveries >= 8 and deaths >= 3 and runs >= 2 and freeway_deliveries >= 3
+	var ok := total_deliveries >= 8 and deaths >= 3 and runs >= 2 and freeway_deliveries >= 3 and river_deliveries >= 3
 	print("RESULT: ", "PASS" if ok else "FAIL")
 	get_tree().quit(0 if ok else 1)

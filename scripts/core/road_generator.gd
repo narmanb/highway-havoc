@@ -5,7 +5,8 @@ extends RefCounted
 ## until SafePathValidator confirms a humane crossing exists.
 ##
 ## Template row codes:  "L:<mix>" road lane, "L:<mix>:g" lane controlled by the
-## crosswalk signal, "M" safe median, "J" freeway barrier median (safe), "S" goal
+## crosswalk signal, "W:<mix>" river lane of floating platforms (water is lethal),
+## "M" safe median, "J" freeway barrier median (safe), "P" wooden pier (safe), "S" goal
 ## sidewalk. Row 0 (the start sidewalk) is implicit: it is the previous segment's goal.
 ##
 ## Safe-row props: "blocked" cells hold trees (solid, obviously in the way);
@@ -18,7 +19,14 @@ const MIXES := {
 	"fast":  [["moto", 5.0], ["car", 3.0]],
 	"mixed": [["car", 4.0], ["truck", 2.0], ["bus", 1.0], ["moto", 1.0]],
 	"haul":  [["truck", 5.0], ["car", 2.0], ["bus", 1.0]],
+	# River lanes (platforms)
+	"barge":     [["barge", 3.0], ["container", 1.0]],
+	"container": [["container", 3.0], ["barge", 1.0]],
+	"crates":    [["crate", 3.0], ["container", 1.0]],
+	"flotsam":   [["barge", 2.0], ["container", 2.0], ["crate", 2.0]],
 }
+## Water lanes: [min, max] speed px/s and gap between platforms in seconds.
+const WATER_SPEED := {"barge": [55.0, 85.0], "container": [70.0, 105.0], "crates": [80.0, 120.0], "flotsam": [65.0, 110.0]}
 const MIX_SPEED := {"city": 1.0, "bus": 0.8, "truck": 0.9, "fast": 1.3, "mixed": 1.0, "haul": 1.0}
 
 const TEMPLATES := {
@@ -31,6 +39,11 @@ const TEMPLATES := {
 	"Six-Lane Sprint": ["L:haul", "L:mixed", "L:fast", "J", "L:fast", "L:haul", "L:mixed", "S"],
 	"Truck Convoy":    ["L:haul", "L:haul", "J", "L:haul", "L:mixed", "J", "L:fast", "L:haul", "S"],
 	"Interchange":     ["L:fast", "L:mixed", "L:haul", "J", "L:fast", "L:fast", "J", "L:haul", "L:mixed", "S"],
+	# Riverfront: dock roads, wooden piers, and channels crossed on barges, containers and crates.
+	"Canal Walk":        ["W:barge", "W:container", "P", "W:barge", "S"],
+	"Harbor Road":       ["L:haul:g", "L:city:g", "P", "W:barge", "W:flotsam", "W:crates", "S"],
+	"Container Channel": ["W:container", "W:barge", "P", "W:crates", "W:container", "W:barge", "S"],
+	"Ferry Crossing":    ["L:city", "L:truck", "P", "W:barge", "W:container", "P", "W:crates", "W:flotsam", "S"],
 }
 const INTRO_TEMPLATE := "Quiet Block"
 const ROTATION := ["Main Street", "Bus Corridor", "Delivery Alley", "Twin Avenues"]
@@ -38,21 +51,30 @@ const ROTATION := ["Main Street", "Bus Corridor", "Delivery Alley", "Twin Avenue
 const DISTRICTS := {
 	"downtown": {"name": "DOWNTOWN RUSH", "rotation": ROTATION, "speed": 1.0},
 	"freeway": {"name": "FREEWAY FRENZY", "rotation": ["Six-Lane Sprint", "Truck Convoy", "Interchange"], "speed": 1.3},
+	"riverfront": {"name": "RIVERFRONT", "rotation": ["Harbor Road", "Container Channel", "Ferry Crossing"], "speed": 1.0,
+		"intro": "Canal Walk"},
 }
+const DISTRICT_ORDER := ["downtown", "freeway", "riverfront"]
 const FREEWAY_TEMPLATES := ["Six-Lane Sprint", "Truck Convoy", "Interchange"]
+const RIVER_TEMPLATES := ["Canal Walk", "Harbor Road", "Container Channel", "Ferry Crossing"]
 const CROSSINGS_PER_DISTRICT := 5
 
 
-## Which district a segment belongs to. Arcade alternates every 5 crossings
-## (Downtown, Freeway, Downtown...); Delivery Rush ends with two freeway crossings.
+## Which district a segment belongs to. Arcade cycles every 5 crossings:
+## Downtown (1-5), Freeway (6-10), Riverfront (11-15), then around again.
+## Delivery Rush: 2 Downtown, 1 Freeway, 2 Riverfront.
 static func district_for(index: int, mode: String) -> String:
 	if mode == "rush":
-		return "freeway" if index >= 3 else "downtown"
-	return "freeway" if (index / CROSSINGS_PER_DISTRICT) % 2 == 1 else "downtown"
+		return ["downtown", "downtown", "freeway", "riverfront", "riverfront"][mini(index, 4)]
+	return DISTRICT_ORDER[(index / CROSSINGS_PER_DISTRICT) % DISTRICT_ORDER.size()]
 
 
 static func district_of_template(template_name: String) -> String:
-	return "freeway" if FREEWAY_TEMPLATES.has(template_name) else "downtown"
+	if FREEWAY_TEMPLATES.has(template_name):
+		return "freeway"
+	if RIVER_TEMPLATES.has(template_name):
+		return "riverfront"
+	return "downtown"
 
 static var stats := {"generated": 0, "rerolls": 0, "eased": 0}
 
@@ -111,7 +133,7 @@ static func _build(run_seed: int, index: int, level: int, template_name: String,
 	rng.seed = hash([run_seed, index, attempt, template_name])
 	var tmpl: Array = TEMPLATES[template_name]
 	var district := district_of_template(template_name)
-	var style := "freeway" if district == "freeway" else "city"
+	var style: String = {"freeway": "freeway", "riverfront": "dock"}.get(district, "city")
 	var smult := level_speed_mult(level) * pow(0.88, ease) * float(DISTRICTS[district]["speed"])
 	var gap_min := maxf(C.MIN_GAP_SECONDS, 1.55 - 0.05 * float(level - 1)) + 0.15 * ease
 	var gap_max := maxf(gap_min + 0.9, 3.4 - 0.12 * float(level - 1)) + 0.3 * ease
@@ -136,8 +158,24 @@ static func _build(run_seed: int, index: int, level: int, template_name: String,
 				})
 				if parts.size() > 2 and parts[2] == "g":
 					light_rows.append(rows.size() - 1)
-				if style == "city" and rng.randf() < 0.72:
+				if style != "freeway" and rng.randf() < 0.72:
 					dir = -dir
+			"W":
+				var wmix := parts[1]
+				var sp: Array = WATER_SPEED[wmix]
+				# Platforms speed up gently with level; gaps between them widen a little.
+				var wmult := minf(1.0 + 0.03 * float(level - 1), 1.35) * pow(0.9, ease)
+				var gmin := minf(0.35 + 0.03 * float(level - 1), 0.9) * pow(0.8, ease)
+				var gmax := minf(1.3 + 0.06 * float(level - 1), 2.4) * pow(0.8, ease)
+				rows.append({
+					"type": C.Row.WATER, "dir": dir, "speed": rng.randf_range(sp[0], sp[1]) * wmult, "style": "river",
+					"mix": MIXES[wmix], "mix_name": wmix, "gap_min": gmin, "gap_max": maxf(gmax, gmin + 0.3),
+					"seed": rng.randi(), "deco_seed": rng.randi(),
+				})
+				dir = -dir if rng.randf() < 0.8 else dir
+			"P":
+				rows.append({"type": C.Row.MEDIAN, "blocked": [], "planters": [], "deco_seed": rng.randi(),
+					"button": -1, "style": "pier"})
 			"M":
 				var trees := _random_props(rng, [], 1)
 				rows.append({"type": C.Row.MEDIAN, "blocked": trees, "planters": _random_props(rng, trees, 2),
@@ -153,7 +191,7 @@ static func _build(run_seed: int, index: int, level: int, template_name: String,
 				rows.append({"type": C.Row.SIDEWALK, "blocked": sblocked,
 					"planters": _random_props(rng, sblocked + [C.CENTER_COL, locker], 1, OUTER_COLS),
 					"button": -1, "locker": locker, "deco_seed": rng.randi(), "style": style})
-	if not has_truck:
+	if not has_truck and district != "riverfront":
 		# Milestone promise: every crossing offers at least one rideable roof.
 		for i in range(1, rows.size()):
 			if rows[i]["type"] == C.Row.ROAD and rows[i]["mix_name"] == "city":
@@ -182,14 +220,18 @@ static func _build(run_seed: int, index: int, level: int, template_name: String,
 		for j in rows.size():
 			if rows[j]["type"] == C.Row.ROAD:
 				lane_rows.append(j)
-		pickups.append(Vector2i(lane_rows[rng.randi() % lane_rows.size()], rng.randi_range(0, C.COLS - 1)))
+		if not lane_rows.is_empty():
+			pickups.append(Vector2i(lane_rows[rng.randi() % lane_rows.size()], rng.randi_range(0, C.COLS - 1)))
 
 	var road_count := 0
+	var water_count := 0
 	for r in rows:
-		if r["type"] == C.Row.ROAD:
+		if r["type"] == C.Row.ROAD or r["type"] == C.Row.WATER:
 			road_count += 1
+		if r["type"] == C.Row.WATER:
+			water_count += 1
 	return {
 		"template": template_name, "district": district, "level": level, "seed": run_seed, "index": index,
 		"rows": rows, "light": light, "pickups": pickups,
-		"par_time": 5.0 + 1.6 * float(road_count), "start_col": C.CENTER_COL,
+		"par_time": 5.0 + 1.6 * float(road_count) + 1.2 * float(water_count), "start_col": C.CENTER_COL,
 	}

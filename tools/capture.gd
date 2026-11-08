@@ -30,10 +30,10 @@ func _ready() -> void:
 			if shot == "settings_dpad":
 				for c in main.screen.get_children():
 					if c.has_method("flash"): c.flash()
-		"freeway":
+		"freeway", "river":
 			main.start_game("arcade")
 			await get_tree().process_frame
-			for i in 5:
+			for i in (5 if shot == "freeway" else 11):
 				main.game._deliver(0.0)
 				main.game.player.respawn(main.game.min_row(), 0.0)
 			main.game.camera.snap_to(C.row_to_y(main.game.min_row()))

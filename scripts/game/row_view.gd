@@ -18,7 +18,9 @@ func _draw() -> void:
 	var t: float = game.anim_time
 	var q: int = GameState.quality()
 	var view_half: float = game.view_half_width() + 140.0
-	if row.type == C.Row.ROAD:
+	if row.is_water():
+		_water_glints(cy, t, view_half)
+	if row.lane != null:
 		for col in row.pickups:
 			_bolt(Vector2(C.col_to_x(col), cy), t)
 		var lane := row.lane
@@ -38,10 +40,10 @@ func _draw() -> void:
 		Art.planter(self, Vector2(C.col_to_x(col), cy + 10), col)
 	for col in row.spec.get("blocked", []):
 		Art.tree(self, Vector2(C.col_to_x(col), cy + 10), col + row.index)
-	if row.style() == "city":
-		_margin_props(rng, cy, t, q, view_half)
-	else:
-		_freeway_props(rng, cy, t, q, view_half)
+	match row.style():
+		"city": _margin_props(rng, cy, t, q, view_half)
+		"dock", "pier": _dock_props(rng, cy, t, q, view_half)
+		_: _freeway_props(rng, cy, t, q, view_half)
 	if row.signal_light != null:
 		_signal_poles(row.signal_light, cy, t)
 	if row.button_light != null:
@@ -87,6 +89,37 @@ func _freeway_props(rng: RandomNumberGenerator, cy: float, t: float, q: int, vie
 				_: Art.sound_wall(self, p)
 		x += rng.randf_range(150, 240)
 		k = rng.randi() % 3
+
+
+## Animated sparkles drifting across the water (drawn under the platforms).
+func _water_glints(cy: float, t: float, view_half: float) -> void:
+	var dir: int = row.lane.dir
+	var n := 14 if GameState.quality() >= 1 else 6
+	for i in n:
+		var base := float((i * 977 + row.index * 131) % 2600) - 1300.0
+		var x := fposmod(base + t * 22.0 * dir + 1300.0, 2600.0) - 1300.0
+		if absf(x) > view_half:
+			continue
+		var y := cy - 18.0 + float((i * 37) % 36)
+		var a := 0.25 + 0.2 * sin(t * 3.0 + i)
+		draw_line(Vector2(x, y), Vector2(x + 14, y), Color(0.8, 0.95, 1.0, a), 2.0)
+
+
+func _dock_props(rng: RandomNumberGenerator, cy: float, t: float, q: int, view_half: float) -> void:
+	for s in [-1.0, 1.0]:
+		Art.mooring(self, Vector2(s * (C.PLAY_HALF_W + 10.0), cy + 6))
+	var x := C.PLAY_HALF_W + 70.0 + rng.randf_range(0, 70)
+	var k := rng.randi() % 4
+	while x < view_half:
+		for s in [-1.0, 1.0]:
+			var p := Vector2(s * x, cy + 4)
+			match (k + int(s)) % 4:
+				0: Art.container_stack(self, p, int(x))
+				1: Art.lamp(self, p, t, q)
+				2: Art.crate_pile(self, p)
+				_: Art.mooring(self, p)
+		x += rng.randf_range(140, 220)
+		k = rng.randi() % 4
 
 
 func _bolt(p: Vector2, t: float) -> void:

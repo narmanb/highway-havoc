@@ -62,6 +62,7 @@ static func vehicle(ci: CanvasItem, v, dir: int, cy: float, t: float, quality: i
 		"moto": _moto(ci, v, dir, x0, x1, cy, bob, t)
 		"bus": _bus(ci, v, dir, x0, x1, cy, bob, quality)
 		"truck": _truck(ci, v, dir, x0, x1, cy, bob, t, flash_marker)
+		"barge", "container", "crate": _float(ci, v, dir, x0, x1, cy, t, flash_marker)
 	if outline_mode:
 		var h: float = VehicleTypes.DEFS[v.kind]["height"] + 14.0
 		ci.draw_rect(Rect2(x0 - 3, cy - 22 - h - 3, L + 6, 44 + h + 6), HICON, false, 3.0)
@@ -379,3 +380,70 @@ static func sound_wall(ci: CanvasItem, p: Vector2) -> void:
 	box(ci, p.x - 60, p.x + 60, p.y - 10, p.y + 4, 0, 46, Color("b9b2a3"), Color("9a9384"))
 	for i in 5:
 		ci.draw_line(Vector2(p.x - 60 + i * 24, p.y + 4 - 44), Vector2(p.x - 60 + i * 24, p.y + 4), Color("847d6f"), 2.0)
+
+
+# ------------------------------------------------------------------ riverfront
+
+## Floating platforms ride low in the water and bob gently. Decks are bright and
+## flat so "safe to land here" reads instantly against the dark water.
+static func _float(ci: CanvasItem, v, dir: int, x0: float, x1: float, cy: float, t: float, flash: bool) -> void:
+	var L := x1 - x0
+	var bob := sin(t * 2.6 + v.phase) * 1.6
+	var col: Color = v.color
+	# Wake & reflection on the water
+	var tail := x0 if dir > 0 else x1
+	ci.draw_rect(Rect2(x0 - 4, cy + 16, L + 8, 8), Color(0.02, 0.1, 0.18, 0.35))
+	for i in 3:
+		var wx := tail - dir * (10.0 + i * 14.0)
+		ci.draw_line(Vector2(wx, cy - 14 + i * 4), Vector2(wx - dir * 10.0, cy - 10 + i * 4), Color(1, 1, 1, 0.35 - i * 0.1), 2.0)
+		ci.draw_line(Vector2(wx, cy + 14 - i * 4), Vector2(wx - dir * 10.0, cy + 10 - i * 4), Color(1, 1, 1, 0.35 - i * 0.1), 2.0)
+	match v.kind:
+		"barge":
+			box(ci, x0, x1, cy - 22, cy + 20, -2 + bob, 10 + bob, Color("c9b48a"), col)
+			var top := cy - 22 - 10 - bob
+			# Deck planks + hatch covers + a little wheelhouse at the stern.
+			for i in int(L / 18.0):
+				ci.draw_line(Vector2(x0 + 4 + i * 18, top + 3), Vector2(x0 + 4 + i * 18, top + 39), Color("a8946c"), 1.0)
+			var wh := x0 + 6.0 if dir > 0 else x1 - 40.0
+			box(ci, wh, wh + 34, cy - 18, cy - 2, 10 + bob, 34 + bob, Color("e8e2d2"), Color("b9b2a3"))
+			ci.draw_rect(Rect2(wh + 4, cy - 2 - 32 - bob, 26, 6), GLASS)
+			ci.draw_rect(Rect2(x0, cy + 20 - 10 - bob, L, 3), Color("f5c400"))
+		"container":
+			box(ci, x0, x1, cy - 20, cy + 18, -2 + bob, 16 + bob, col.lightened(0.15), col.darkened(0.15))
+			var fy := cy + 18 - 16 - bob
+			for i in int(L / 10.0):
+				ci.draw_line(Vector2(x0 + 4 + i * 10, fy + 2), Vector2(x0 + 4 + i * 10, fy + 14), col.darkened(0.35), 1.5)
+			var ty := cy - 20 - 16 - bob
+			ci.draw_rect(Rect2(x0 + 6, ty + 4, L - 12, 30), col.lightened(0.25))
+			var font := ThemeDB.fallback_font
+			ci.draw_string(font, Vector2(x0 + L * 0.5 - 22, ty + 25), "HVC", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, col.darkened(0.4))
+		_:
+			box(ci, x0 + 4, x1 - 4, cy - 18, cy + 16, -2 + bob, 12 + bob, Color("c79a5e"), Color("8c6237"))
+			var cty := cy - 18 - 12 - bob
+			for i in 3:
+				ci.draw_line(Vector2(x0 + 6, cty + 4 + i * 11), Vector2(x1 - 6, cty + 4 + i * 11), Color("8c6237"), 2.0)
+			ci.draw_line(Vector2(x0 + 6, cty + 2), Vector2(x1 - 6, cty + 32), Color("8c6237"), 2.0)
+	# Foam where the hull meets the water.
+	ci.draw_rect(Rect2(x0 - 2, cy + 18 + bob * 0.3, L + 4, 3), Color(1, 1, 1, 0.45))
+	if flash and int(t * 8.0) % 2 == 0:
+		ci.draw_rect(Rect2(x0 - 3, cy - 40, L + 6, 64), Color("ff4a3a"), false, 3.0)
+
+
+static func mooring(ci: CanvasItem, p: Vector2) -> void:
+	ci.draw_rect(Rect2(p.x - 9, p.y - 20, 18, 22), OUTLINE)
+	ci.draw_rect(Rect2(p.x - 7.5, p.y - 18, 15, 19), Color("2e3440"))
+	ci.draw_rect(Rect2(p.x - 11, p.y - 22, 22, 6), Color("4c566a"))
+	ci.draw_rect(Rect2(p.x - 7.5, p.y - 12, 15, 3), Color("f5c400"))
+
+
+static func container_stack(ci: CanvasItem, p: Vector2, seed_v: int) -> void:
+	var cols := VehicleTypes.CONTAINER_COLORS
+	for i in 2:
+		var c: Color = cols[(seed_v + i) % cols.size()]
+		box(ci, p.x - 54, p.x + 54, p.y - 16, p.y + 6, 0 + i * 26, 26 + i * 26, c.lightened(0.15), c.darkened(0.15))
+
+
+static func crate_pile(ci: CanvasItem, p: Vector2) -> void:
+	box(ci, p.x - 26, p.x + 2, p.y - 12, p.y + 6, 0, 24, Color("c79a5e"), Color("8c6237"))
+	box(ci, p.x + 2, p.x + 28, p.y - 12, p.y + 6, 0, 20, Color("b98a52"), Color("7d5530"))
+	box(ci, p.x - 14, p.x + 12, p.y - 10, p.y + 2, 24, 44, Color("d1a86c"), Color("946a3e"))

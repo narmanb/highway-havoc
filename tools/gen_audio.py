@@ -118,6 +118,13 @@ def sfx():
         tt = t_axis(d)
         fan.append((square(fr, tt, 0.25) * 0.6 + tri(fr / 2, tt) * 0.5) * env(len(tt), 0.003, d * 0.8, 0.3))
     write("deliver", np.concatenate(fan), 0.6)
+    # Splash: noise burst with a falling "bloop"
+    t = t_axis(0.6)
+    sp = lowpass(noise(len(t)), 0.35) * env(len(t), 0.002, 0.18) + sine(np.linspace(500, 120, len(t)), t) * env(len(t), 0.01, 0.12) * 0.6
+    write("splash", sp, 0.7)
+    # Wooden plank thunk for landing on a floating platform
+    t = t_axis(0.14)
+    write("plank", (tri(np.linspace(220, 150, len(t)), t) + lowpass(noise(len(t)), 0.4) * 0.4) * env(len(t), 0.001, 0.04), 0.55)
     t = t_axis(0.1)
     write("ui_move", square(880, t, 0.25) * env(len(t), 0.001, 0.03), 0.3)
     t = t_axis(0.16)

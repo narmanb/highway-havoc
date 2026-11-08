@@ -66,16 +66,20 @@ var vehicles: Array = []       # leader (furthest forward) first
 var next_gap_px := 0.0
 var time := 0.0
 var light: RefCounted = null   # TrafficLight controlling this lane, or null
+var water := false             # river lane: vehicles are floating platforms
 var crosswalk_x := 0.0         # world x of the crosswalk column (when light != null)
 
 var on_spawn: Callable         # optional hook (vehicle) -> void, used by the renderer
 
 
-func setup(p_dir: int, p_speed: float, p_mix: Array, p_gap_min: float, p_gap_max: float, p_seed: int) -> void:
+func setup(p_dir: int, p_speed: float, p_mix: Array, p_gap_min: float, p_gap_max: float, p_seed: int, p_water := false) -> void:
 	dir = p_dir
 	speed = p_speed
 	mix = p_mix
-	gap_min_s = maxf(p_gap_min, C.MIN_GAP_SECONDS)
+	water = p_water
+	# Road lanes: gaps are the safe part, so they have a floor. Water lanes: gaps are
+	# the danger, so the generator keeps them short and the validator checks them.
+	gap_min_s = p_gap_min if water else maxf(p_gap_min, C.MIN_GAP_SECONDS)
 	gap_max_s = maxf(p_gap_max, gap_min_s)
 	rng.seed = p_seed
 	vehicles.clear()
@@ -98,7 +102,7 @@ func spawn_f() -> float:
 
 func _roll_gap() -> void:
 	# Gap is a time window, but never shorter than MIN_GAP_PX so slow lanes stay open too.
-	next_gap_px = maxf(speed * rng.randf_range(gap_min_s, gap_max_s), MIN_GAP_PX)
+	next_gap_px = maxf(speed * rng.randf_range(gap_min_s, gap_max_s), 24.0 if water else MIN_GAP_PX)
 
 
 func _pick_kind() -> String:

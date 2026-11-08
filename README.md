@@ -2,10 +2,10 @@
 
 A lane-crossing arcade game. You play a small, overconfident delivery robot carrying parcels across busy downtown streets. Built with **Godot 4.3** (GDScript, GL Compatibility renderer) for Android phones (portrait) and the Retroid Pocket 5 (landscape, gamepad).
 
-This repository holds the **first playable milestone** from the design document (Downtown, with endless validated crossings), plus a second district, **Freeway Frenzy**.
+This repository holds the **first playable milestone** from the design document (Downtown, with endless validated crossings), plus two more districts, **Freeway Frenzy** and **Riverfront**.
 
 <p>
-<img src="docs/title.png" width="180"> <img src="docs/game.png" width="180"> <img src="docs/garage.png" width="180"> <img src="docs/results.png" width="180"> <img src="docs/freeway.png" width="180"> <img src="docs/settings.png" width="180">
+<img src="docs/title.png" width="180"> <img src="docs/game.png" width="180"> <img src="docs/garage.png" width="180"> <img src="docs/results.png" width="180"> <img src="docs/freeway.png" width="180"> <img src="docs/settings.png" width="180"> <img src="docs/riverfront.png" width="180">
 </p>
 <img src="docs/landscape.png" width="560">
 
@@ -23,11 +23,12 @@ This repository holds the **first playable milestone** from the design document 
 | Pause / Restart / Quit, results screen with breakdown and a large Retry button | `scripts/ui/main.gd` |
 | City dressing, road texture, shadows, animated signals and lamps, particles, skid marks, camera shake, hit-stop | `row_ground.gd`, `row_view.gd`, `fx_pool.gd` |
 | Five curated lane templates, picked at random and re-rolled until they pass fairness validation | `RoadGenerator.TEMPLATES` |
-| **Districts:** Downtown Rush (crossings 1–5), then Freeway Frenzy (6–10), alternating every 5. Freeway has faster one-way carriageways full of trucks, concrete barrier medians where traffic flips direction, rumble strips, highway signs and sound walls, and no crosswalks. An "ENTERING FREEWAY FRENZY" banner marks the switch, and districts you reach are saved | `RoadGenerator.DISTRICTS`, `row_ground.gd` |
+| **Riverfront** (crossings 11–15): water is deadly. Cross by hopping between moving barges, floating shipping containers and crates. You drift with whatever you stand on, so hop off before it carries you out of the playfield (the deck flashes red as a warning). The safe rows are wooden docks and piers, the harbor roads have trucks and crosswalk signals, and there's a gentle "Canal Walk" intro crossing. The safe-exit arrows also work on water: green means a deck will be under you when you land | `RoadGenerator` (`W:` lanes), `VehicleTypes` (barge/container/crate), `player_hop_controller.gd` |
+| **Districts:** Downtown Rush (crossings 1–5), then Freeway Frenzy (6–10), then Riverfront (11–15), cycling every 5. Freeway has faster one-way carriageways full of trucks, concrete barrier medians where traffic flips direction, rumble strips, highway signs and sound walls, and no crosswalks. An "ENTERING FREEWAY FRENZY" banner marks the switch, and districts you reach are saved | `RoadGenerator.DISTRICTS`, `row_ground.gd` |
 | Delivery Rush: a daily-seed course of 5 crossings in 100 s with one objective | `game.gd` (`mode == "rush"`) |
 | Garage: six robot colour schemes, unlocked by total deliveries (no paid or grind-only advantages) | `GameState.PALETTES` |
 
-Still to come: Industrial Crossing, Riverfront, Rail Junction and Storm Night, plus pileups and rain, larger unlock trees, and online leaderboards.
+Still to come: Industrial Crossing, Rail Junction and Storm Night, plus pileups and rain, larger unlock trees, and online leaderboards.
 
 ## How to play
 
@@ -55,7 +56,8 @@ The design's core rule is *"the player always understands what killed them."* Th
 2. **Spacing rules.** Vehicles in a lane are never closer than 1.0 s *and* 150 px. Spawn positions are tied to the previous vehicle, so spacing doesn't depend on frame rate.
 3. **SafePathValidator.** Every generated crossing is searched for a path that works with *human* timing: decisions every 0.15 s (slower than a hop), every hitbox widened by 14 px on each end, truck roofs treated as deadly, and the crosswalk button never pressed. A path must exist from **five different start times**. Crossings that fail are re-rolled, then traffic is eased off. At most 4 lanes may come before a refuge row.
 4. **Honest collisions.** A hit happens only when the 40×36 robot box overlaps a vehicle box on the row the robot is in. Hop height and animation never count.
-5. **The signal never lies.** WALK starts only after the crosswalk is physically empty. Each car decides at amber, using braking physics, whether it can stop.
+5. **Rivers are validated too.** On water the robot drifts with its platform, so crossings with water use a search over continuous position that follows the drift. The robot's centre must be at least 12 px inside a deck to count as aboard, and it must never be carried within half a tile of the edge.
+6. **The signal never lies.** WALK starts only after the crosswalk is physically empty. Each car decides at amber, using braking physics, whether it can stop.
 
 ## Tests (run headless)
 
@@ -73,8 +75,8 @@ godot --headless --path . --fixed-fps 60 res://tests/touch_test.tscn
 
 Results from the build machine (Godot 4.3, Linux):
 
-* `run_tests.gd`: **1,074 checks, 0 failures** (now including all 8 templates across both districts, 240 segments). Worst lane gap 1.00 s. 238 signal cycles with 0 frames where WALK showed while a vehicle was in the crosswalk. 150/150 segments validated.
-* `bot_playtest.tscn`: 240 s simulated. The careful phase made 30+ deliveries with no deaths (32–35 across runs; each run uses a random seed). The careful bot also made 14 Freeway deliveries and died there twice, so Freeway is noticeably harder. The reckless phase triggered about 28 deaths and 9 game-over/restart cycles. **PASS.**
+* `run_tests.gd`: **1,470 checks, 0 failures** (all 12 templates across three districts, 360 segments, plus tests of the water search). Worst lane gap 1.00 s. 238 signal cycles with 0 frames where WALK showed while a vehicle was in the crosswalk. 150/150 segments validated.
+* `bot_playtest.tscn`: 240 s simulated. The careful phase made 30+ deliveries with no deaths (32–35 across runs; each run uses a random seed). The careful bot (now 300 s) also crosses Freeway and Riverfront: in one run it made 15 Freeway and 6 Riverfront deliveries, with 6 deaths in its careful phase, mostly splashes. The reckless phase triggered about 28 deaths and 9 game-over/restart cycles. **PASS.**
 
 * `touch_test.tscn`: **20 checks, 0 failures** (including hopping onto a planter and being blocked by a tree), both headless and in a real 720×1280 window under Xvfb.
 

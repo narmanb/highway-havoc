@@ -147,7 +147,7 @@ func _start(d: Vector2i, dash: bool) -> bool:
 			if toff >= lo and toff <= hi:
 				_begin_roof_hop(toff, dash)
 				return true
-			if d.x == ride_lane.dir:
+			if d.x == ride_lane.dir and float(VehicleTypes.DEFS[v.kind]["cab"]) > 0.0:
 				# Toward the cab: slide to the front edge of the cargo roof if there is room.
 				var edge := hi if d.x > 0 else lo
 				if absf(edge - ride_offset) > 12.0:
@@ -155,7 +155,7 @@ func _start(d: Vector2i, dash: bool) -> bool:
 					return true
 				_bonk()
 				return false
-			# Off the back of the truck, into the lane.
+			# Off the back of the truck (or either end of a floating platform).
 			var tx2 := cur_x + d.x * C.TILE * steps
 			if not C.in_play_x(tx2):
 				_bonk()
@@ -318,13 +318,16 @@ func _land() -> void:
 	px = hop_to_x
 	state = S.IDLE
 	var rs: RowState = game.row_state(row)
-	if rs != null and rs.type == C.Row.ROAD:
+	if rs != null and rs.lane != null:
 		var lane := rs.lane
 		var a := px - C.PLAYER_HALF_W
 		var b := px + C.PLAYER_HALF_W
 		var truck = _mountable(lane)
 		if truck != null and lane.solid_overlapping(a, b) == null:
 			_mount(lane, truck)
+		elif rs.is_water():
+			_die("splash", null)
+			return
 		else:
 			var v = lane.vehicle_overlapping(a, b)
 			if v != null:
@@ -369,7 +372,12 @@ func check_collision() -> void:
 	if r < 0:
 		return
 	var rs: RowState = game.row_state(r)
-	if rs == null or rs.type != C.Row.ROAD:
+	if rs == null or rs.lane == null:
+		return
+	if rs.is_water():
+		# Standing in water (not on a deck) is only possible if the deck left: splash.
+		if state == S.IDLE:
+			_die("splash", null)
 		return
 	var lane := rs.lane
 	var a := px - C.PLAYER_HALF_W
@@ -401,6 +409,9 @@ func _die(cause: String, v) -> void:
 	roof_z = 0.0
 	death_vel = Vector2(push * 340.0, -520.0)
 	death_spin = push * 16.0
+	if cause == "splash":
+		death_vel = Vector2(0.0, -260.0)
+		death_spin = 3.0
 	mood = "dead"
 	died.emit(cause, v)
 

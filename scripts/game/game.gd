@@ -139,7 +139,10 @@ func _template_for(index: int) -> String:
 	var prev := ""
 	if index > 0 and segments.size() >= index:
 		prev = segments[index - 1]["spec"]["template"]
-	var rot: Array = RoadGenerator.DISTRICTS[RoadGenerator.district_for(index, mode)]["rotation"]
+	var dinfo: Dictionary = RoadGenerator.DISTRICTS[RoadGenerator.district_for(index, mode)]
+	if dinfo.has("intro") and mode != "rush" and index % RoadGenerator.CROSSINGS_PER_DISTRICT == 0:
+		return dinfo["intro"]
+	var rot: Array = dinfo["rotation"]
 	var pick: String = rot[rng.randi() % rot.size()]
 	if pick == prev:
 		pick = rot[(rot.find(pick) + 1) % rot.size()]
@@ -198,10 +201,10 @@ func _create_segment(spec: Dictionary) -> void:
 			rs.spec = srows[i]
 			rs.type = int(srows[i]["type"])
 			rs.seg = k
-			if rs.type == C.Row.ROAD:
+			if rs.type == C.Row.ROAD or rs.type == C.Row.WATER:
 				var l := LaneSim.new()
 				var r: Dictionary = srows[i]
-				l.setup(r["dir"], r["speed"], r["mix"], r["gap_min"], r["gap_max"], r["seed"])
+				l.setup(r["dir"], r["speed"], r["mix"], r["gap_min"], r["gap_max"], r["seed"], rs.type == C.Row.WATER)
 				l.prewarm()
 				rs.lane = l
 			rows[wr] = rs
@@ -538,23 +541,34 @@ func _deliver(x: float) -> void:
 
 
 func _on_mounted(v) -> void:
-	var pts := score.add_roof_mount()
-	Audio.play("ride")
-	fx.popup(Vector2(player.px, C.row_to_y(player.row) - 90), "ROOF RIDE +%d" % pts, Color("9de8ff"), 26)
+	var floating := VehicleTypes.is_float(v.kind)
+	Audio.play("plank" if floating else "ride", 0.1)
+	var pts := score.add_roof_mount(v.id)
+	if pts > 0:
+		fx.popup(Vector2(player.px, C.row_to_y(player.row) - 90), ("ALL ABOARD +%d" if floating else "ROOF RIDE +%d") % pts, Color("9de8ff"), 26)
 
 
 func _on_died(cause: String, v) -> void:
 	lives -= 1
 	score.lose_life()
 	var pos := Vector2(player.px, C.row_to_y(player.row) - 20)
-	Audio.play("crash")
-	if v != null:
+	if cause == "splash":
+		Audio.play("splash")
+		fx.splash(pos + Vector2(0, 20))
+	else:
+		Audio.play("crash")
+	if v != null and cause != "splash" and cause != "carried":
 		Audio.play_at("honk", Vector2(v.x, pos.y), 0.15)
 		v.slow_timer = 0.7
-	fx.sparks(pos, signf(player.death_vel.x))
-	camera.add_shake(12.0)
+	if cause != "splash":
+		fx.sparks(pos, signf(player.death_vel.x))
+	camera.add_shake(6.0 if cause == "splash" else 12.0)
 	hit_stop = 0.07
-	var msg: String = "CARRIED AWAY!" if cause == "carried" else ["BONK!", "OOF!", "SPLAT!", "WHOOPS!"][randi() % 4]
+	var msg: String = ["BONK!", "OOF!", "SPLAT!", "WHOOPS!"][randi() % 4]
+	if cause == "carried":
+		msg = "CARRIED AWAY!"
+	elif cause == "splash":
+		msg = ["SPLASH!", "SPLOOSH!", "GLUG GLUG!"][randi() % 3]
 	fx.popup(pos - Vector2(0, 50), msg, Color("ff6b6b"), 34)
 	if lives <= 0:
 		_end_run(1.1)

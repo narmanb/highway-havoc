@@ -45,7 +45,16 @@ func add_near_miss(vehicle_id: int) -> int:
 	return _add("near_miss", NEAR_MISS_POINTS)
 
 
-func add_roof_mount() -> int:
+var _mounted_ids := {}
+
+
+## Points for boarding a truck roof or floating platform: once per vehicle, so
+## hopping back and forth on the same barge can't be farmed.
+func add_roof_mount(vehicle_id := -1) -> int:
+	if vehicle_id >= 0:
+		if _mounted_ids.has(vehicle_id):
+			return 0
+		_mounted_ids[vehicle_id] = true
 	roof_rides += 1
 	return _add("roof", ROOF_MOUNT_POINTS)
 

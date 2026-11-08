@@ -76,6 +76,15 @@ func confetti(pos: Vector2) -> void:
 			randf_range(4, 7), 700.0, 2)
 
 
+func splash(pos: Vector2) -> void:
+	for i in _scaled(26):
+		var a := randf_range(-PI * 0.92, -PI * 0.08)
+		_add(pos, Vector2(cos(a) * randf_range(60, 220), sin(a) * randf_range(200, 460)), randf_range(0.4, 0.8),
+			Color("bfe9ff").lerp(Color("ffffff"), randf()), randf_range(3, 6), 1200.0, 1)
+	for i in _scaled(8):
+		_add(pos + Vector2(randf_range(-20, 20), 4), Vector2(randf_range(-40, 40), 0), 0.7, Color(1, 1, 1, 0.5), 9.0, 0.0, 1)
+
+
 func sparkle(pos: Vector2) -> void:
 	for i in _scaled(12):
 		var a := TAU * float(i) / 12.0
