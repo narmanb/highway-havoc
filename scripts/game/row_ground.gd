@@ -16,10 +16,11 @@ var row: RowState
 func _draw() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(row.spec.get("deco_seed", row.index * 7919))
+	var style := row.style()
 	match row.type:
 		C.Row.ROAD: _road(rng)
-		C.Row.SIDEWALK: _sidewalk(rng)
-		C.Row.MEDIAN: _median(rng)
+		C.Row.SIDEWALK: _shoulder(rng) if style == "freeway" else _sidewalk(rng)
+		C.Row.MEDIAN: _barrier(rng) if style == "barrier" else _median(rng)
 	# Dim everything outside the playable columns so the bounds read instantly.
 	var shade := Color(0.05, 0.06, 0.12, 0.22)
 	draw_rect(Rect2(-W, -HALF, W - C.PLAY_HALF_W, C.TILE), shade)
@@ -27,7 +28,8 @@ func _draw() -> void:
 
 
 func _road(rng: RandomNumberGenerator) -> void:
-	var base := ASPHALT.lerp(Color("444855"), rng.randf() * 0.5)
+	var fw := row.style() == "freeway"
+	var base := (Color("4c4f58") if fw else ASPHALT).lerp(Color("444855"), rng.randf() * 0.5)
 	draw_rect(Rect2(-W, -HALF, W * 2.0, C.TILE), base)
 	# Aggregate speckle texture.
 	for i in 260:
@@ -70,12 +72,14 @@ func _road(rng: RandomNumberGenerator) -> void:
 	var ab := row.above
 	if ab != null and ab.type == C.Row.ROAD:
 		if int(ab.spec["dir"]) == dir:
-			var dx := -W + fmod(float(row.index) * 37.0, 48.0)
+			var dash := 48.0 if fw else 28.0
+			var period := 96.0 if fw else 48.0
+			var dx := -W + fmod(float(row.index) * 37.0, period)
 			while dx < W:
 				var worn := rng.randf()
 				var a := 0.8 if worn > 0.15 else 0.35
-				draw_rect(Rect2(dx, -HALF - 2, 28, 4), Color(0.95, 0.95, 0.9, a))
-				dx += 48.0
+				draw_rect(Rect2(dx, -HALF - 2, dash, 4), Color(0.95, 0.95, 0.9, a))
+				dx += period
 		else:
 			draw_rect(Rect2(-W, -HALF - 4, W * 2.0, 3), Color("f2c230"))
 			draw_rect(Rect2(-W, -HALF + 1, W * 2.0, 3), Color("f2c230"))
@@ -83,6 +87,16 @@ func _road(rng: RandomNumberGenerator) -> void:
 		draw_rect(Rect2(-W, -HALF + 3, W * 2.0, 3), Color(1, 1, 1, 0.75))
 	if row.below != null and row.below.type != C.Row.ROAD:
 		draw_rect(Rect2(-W, HALF - 6, W * 2.0, 3), Color(1, 1, 1, 0.75))
+	if fw:
+		# Rumble strips beside the barriers / shoulders.
+		for edge in [-1, 1]:
+			var nb: RowState = row.above if edge < 0 else row.below
+			if nb != null and nb.type != C.Row.ROAD:
+				var ry: float = -HALF + 7.0 if edge < 0 else HALF - 13.0
+				var rx := -W
+				while rx < W:
+					draw_rect(Rect2(rx, ry, 6, 5), Color(1, 1, 1, 0.22))
+					rx += 14.0
 	# Crosswalk and stop line for signal-controlled lanes.
 	if row.light != null:
 		var cxw: float = row.light.x
@@ -150,3 +164,40 @@ func _median(rng: RandomNumberGenerator) -> void:
 		for yy in range(-24, 25, 8):
 			for xx in range(-24, 25, 8):
 				draw_circle(Vector2(bx + xx, yy), 1.6, Color("c9a33a"))
+
+
+func _shoulder(rng: RandomNumberGenerator) -> void:
+	# Freeway shoulder: pale asphalt strip with a grass verge behind it.
+	draw_rect(Rect2(-W, -HALF, W * 2.0, C.TILE), Color("6c8f4f"))
+	draw_rect(Rect2(-W, -HALF + 16, W * 2.0, C.TILE - 16), Color("8d8f94"))
+	for i in 180:
+		var p := Vector2(rng.randf_range(-W, W), rng.randf_range(-HALF + 18, HALF - 4))
+		draw_rect(Rect2(p, Vector2(2, 2)), Color("9fa1a6") if rng.randf() < 0.5 else Color("7b7d82"))
+	for i in 60:
+		draw_rect(Rect2(rng.randf_range(-W, W), rng.randf_range(-HALF + 1, -HALF + 13), 2, 3), Color("85aa63"))
+	draw_rect(Rect2(-W, HALF - 7, W * 2.0, 4), Color("f2c230"))
+	_goal_and_button()
+
+
+func _barrier(rng: RandomNumberGenerator) -> void:
+	# Concrete median with a low jersey barrier along its back edge (safe to stand in front of).
+	draw_rect(Rect2(-W, -HALF, W * 2.0, C.TILE), Color("9a9a9e"))
+	for i in 120:
+		draw_rect(Rect2(rng.randf_range(-W, W), rng.randf_range(-HALF, HALF), 2, 2), Color("8a8a8e"))
+	draw_rect(Rect2(-W, -HALF, W * 2.0, 18), Color("c9c6bd"))
+	draw_rect(Rect2(-W, -HALF + 18, W * 2.0, 6), Color("a8a49a"))
+	var x := -W
+	while x < W:
+		draw_rect(Rect2(x, -HALF + 6, 2, 12), Color("a8a49a"))
+		draw_rect(Rect2(x + 30, -HALF + 8, 6, 4), Color("ffd23f"))
+		x += 72.0
+	draw_rect(Rect2(-W, HALF - 7, W * 2.0, 4), Color("f2c230"))
+
+
+func _goal_and_button() -> void:
+	if row.is_goal:
+		var lc := row.locker_col()
+		if lc >= 0:
+			var lx := C.col_to_x(lc)
+			draw_rect(Rect2(lx - 32, -HALF + 18, 64, C.TILE - 28), Color("ffd84a"))
+			draw_rect(Rect2(lx - 28, -HALF + 22, 56, C.TILE - 36), Color("ffe98c"))

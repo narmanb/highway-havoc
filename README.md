@@ -2,10 +2,10 @@
 
 A lane-crossing arcade game. You play a small, overconfident delivery robot carrying parcels across busy downtown streets. Built with **Godot 4.3** (GDScript, GL Compatibility renderer) for Android phones (portrait) and the Retroid Pocket 5 (landscape, gamepad).
 
-This repository is the **first playable milestone** from the design document: one polished Downtown district with endless, validated crossings.
+This repository holds the **first playable milestone** from the design document (Downtown, with endless validated crossings), plus a second district, **Freeway Frenzy**.
 
 <p>
-<img src="docs/title.png" width="180"> <img src="docs/game.png" width="180"> <img src="docs/garage.png" width="180"> <img src="docs/results.png" width="180">
+<img src="docs/title.png" width="180"> <img src="docs/game.png" width="180"> <img src="docs/garage.png" width="180"> <img src="docs/results.png" width="180"> <img src="docs/freeway.png" width="180"> <img src="docs/settings.png" width="180">
 </p>
 <img src="docs/landscape.png" width="560">
 
@@ -23,10 +23,11 @@ This repository is the **first playable milestone** from the design document: on
 | Pause / Restart / Quit, results screen with breakdown and a large Retry button | `scripts/ui/main.gd` |
 | City dressing, road texture, shadows, animated signals and lamps, particles, skid marks, camera shake, hit-stop | `row_ground.gd`, `row_view.gd`, `fx_pool.gd` |
 | Five curated lane templates, picked at random and re-rolled until they pass fairness validation | `RoadGenerator.TEMPLATES` |
+| **Districts:** Downtown Rush (crossings 1–5), then Freeway Frenzy (6–10), alternating every 5. Freeway has faster one-way carriageways full of trucks, concrete barrier medians where traffic flips direction, rumble strips, highway signs and sound walls, and no crosswalks. An "ENTERING FREEWAY FRENZY" banner marks the switch, and districts you reach are saved | `RoadGenerator.DISTRICTS`, `row_ground.gd` |
 | Delivery Rush: a daily-seed course of 5 crossings in 100 s with one objective | `game.gd` (`mode == "rush"`) |
 | Garage: six robot colour schemes, unlocked by total deliveries (no paid or grind-only advantages) | `GameState.PALETTES` |
 
-Not in this milestone, as the design document asks: pileups, rain/Storm Night, the rail yard and the other districts, larger unlock trees, and online leaderboards.
+Still to come: Industrial Crossing, Riverfront, Rail Junction and Storm Night, plus pileups and rain, larger unlock trees, and online leaderboards.
 
 ## How to play
 
@@ -38,6 +39,7 @@ Not in this milestone, as the design document asks: pileups, rain/Storm Night, t
 * Step onto the **green hand pad** at the foot of a crosswalk. The light turns amber, then red. The walking figure (and a white countdown ring) appears only once the crosswalk is actually clear. A flashing orange hand means traffic is about to move again.
 * Land on the **yellow-ringed cargo roof** of a delivery truck to ride it for bonus points. Green and red arrows above and below the robot show whether hopping off right now is safe. The pad flashes red when the truck is about to carry you off the playfield. **B / Shift** steps off backwards.
 * Orange chevrons at the screen edge warn about vehicles that are about to arrive. Their size shows the vehicle size.
+* **Flower planters** (low square boxes) can be hopped onto. **Trees** (round iron grate at the base) block the cell.
 * Reach the far sidewalk to deliver. Landing on the glowing **doorstep** in front of the blue locker earns a bonus.
 
 **Gamepad:** D-pad or left stick to hop (one hop per press, no diagonals), A dash, B step off a roof, Start pause. **Keyboard:** arrows/WASD, Space, Shift, Esc/P.
@@ -71,10 +73,10 @@ godot --headless --path . --fixed-fps 60 res://tests/touch_test.tscn
 
 Results from the build machine (Godot 4.3, Linux):
 
-* `run_tests.gd`: **315 checks, 0 failures.** Worst lane gap 1.00 s. 238 signal cycles with 0 frames where WALK showed while a vehicle was in the crosswalk. 150/150 segments validated.
-* `bot_playtest.tscn`: 240 s simulated. The careful phase made 30+ deliveries with no deaths (32–35 across runs; each run uses a random seed). The reckless phase triggered about 28 deaths and 9 game-over/restart cycles. **PASS.**
+* `run_tests.gd`: **1,074 checks, 0 failures** (now including all 8 templates across both districts, 240 segments). Worst lane gap 1.00 s. 238 signal cycles with 0 frames where WALK showed while a vehicle was in the crosswalk. 150/150 segments validated.
+* `bot_playtest.tscn`: 240 s simulated. The careful phase made 30+ deliveries with no deaths (32–35 across runs; each run uses a random seed). The careful bot also made 14 Freeway deliveries and died there twice, so Freeway is noticeably harder. The reckless phase triggered about 28 deaths and 9 game-over/restart cycles. **PASS.**
 
-* `touch_test.tscn`: **17 checks, 0 failures**, both headless and in a real 720×1280 window under Xvfb.
+* `touch_test.tscn`: **20 checks, 0 failures** (including hopping onto a planter and being blocked by a tree), both headless and in a real 720×1280 window under Xvfb.
 
 What hasn't been checked: the game has **not been run on a physical Android phone or a Retroid Pocket 5**. Touch input, safe areas and real-device performance still need a pass on hardware. Screenshots were rendered under Xvfb with Mesa's software OpenGL.
 
@@ -108,6 +110,6 @@ tools/             audio generator, screenshot helper
 
 **Original assets.** All art is drawn in code with Godot's drawing calls (`scripts/game/art.gd` and the row renderers), so there are no image files to edit. All sound and the music loop come from `tools/gen_audio.py` (`python3 tools/gen_audio.py`, requires numpy). The icon is `icon.svg`.
 
-**Settings.** Music and SFX volume, screen-shake strength, hold-repeat delay, effects quality (Low/Medium/High), reduced flashing, high-contrast outlines, left-handed layout, touch scheme, hold-edge hopping, double-tap dash, Hardcore and a 30 FPS battery saver. Everything is stored offline in `user://save.cfg`; no account or internet is needed.
+**Settings** (one screen, no scrolling). Music and SFX volume, screen-shake strength, **repeat speed** (hops per second while a direction is held: the first hop is instant, repeating starts after the "Repeat starts" delay, and it applies to held D-pad/keys/stick, the on-screen D-pad, tap-toward-robot holds and hold-edge mode, but not swipes), **D-pad size and arrow spread** (D-pad mode only, with a live preview while you drag), effects quality (Low/Medium/High), reduced flashing, high-contrast outlines, left-handed layout, touch scheme, hold-edge hopping, double-tap dash, Hardcore and a 30 FPS battery saver. Everything is stored offline in `user://save.cfg`; no account or internet is needed.
 
 **Seeds.** Each crossing is fully defined by `(run seed, segment index, level, template)`, so a segment can be reproduced from those values when reporting a bug. Delivery Rush uses a seed derived from the date.

@@ -47,6 +47,7 @@ var anim_t := 0.0
 var mood := "normal"
 var mood_timer := 0.0
 var roof_z := 0.0
+var stand_z := 0.0      # visual lift from standing on a planter box
 var death_t := 0.0
 var death_vel := Vector2.ZERO
 var death_off := Vector2.ZERO
@@ -242,6 +243,13 @@ func update(dt: float) -> void:
 		mood_timer -= dt
 		if mood_timer <= 0.0 and state != S.DEAD:
 			mood = "normal"
+	if state == S.IDLE:
+		stand_z = move_toward(stand_z, game.stand_height(row, px), dt * 200.0)
+	elif state == S.HOP and not hop_on_roof:
+		var k0 := minf(hop_t, 1.0)
+		stand_z = lerpf(game.stand_height(hop_from_row, hop_from_x), game.stand_height(hop_to_row, hop_to_x), k0)
+	else:
+		stand_z = 0.0
 	match state:
 		S.RIDE:
 			_follow_ride()
@@ -404,7 +412,7 @@ func _sync_node() -> void:
 		y = lerpf(C.row_to_y(hop_from_row), C.row_to_y(hop_to_row), k)
 	else:
 		y = C.row_to_y(row)
-	var bias := 30.0 if (is_riding() or roof_z > 1.0) else C.PLAYER_HALF_H
+	var bias := 30.0 if (is_riding() or roof_z > 1.0 or stand_z > 1.0) else C.PLAYER_HALF_H
 	position = Vector2(px, y + bias) + death_off
 	set_meta("bias", bias)
 	queue_redraw()
@@ -416,7 +424,7 @@ func _draw() -> void:
 	if state == S.HOP:
 		var k := minf(hop_t, 1.0)
 		lift = sin(k * PI) * (C.DASH_HEIGHT if hop_dash else C.HOP_HEIGHT)
-	var rz := roof_z
+	var rz := roof_z + stand_z
 	if state == S.HOP and hop_on_roof:
 		rz = ROOF_Z
 	Art.robot(self, Vector2(0, -bias), palette, facing, lift, squash - spawn_pop * 0.8, anim_t, mood,

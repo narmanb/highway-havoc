@@ -90,7 +90,7 @@ func _layout() -> void:
 	hint_lbl.position = Vector2(0, s.y * 0.80)
 	hint_lbl.size = Vector2(s.x, 50)
 	banner_lbl.position = Vector2(0, s.y * 0.3)
-	banner_lbl.size = Vector2(s.x, 60)
+	banner_lbl.size = Vector2(s.x, 130)
 	var bottom: float = s.y - _margins["bottom"] - 28.0
 	var side_r: float = s.x - _margins["right"] - 28.0
 	var side_l: float = _margins["left"] + 28.0
@@ -98,12 +98,12 @@ func _layout() -> void:
 	pause_btn.size = pause_btn.custom_minimum_size
 	dash_btn.position = Vector2((side_l if lh else side_r - 150.0), bottom - 150.0)
 	pause_btn.position = Vector2((side_l if lh else side_r - 96.0), top)
-	var r := 125.0
 	if game.input.touch_mode() == "dpad":
 		# D-pad under the steering thumb, dash on the other side.
-		var cx: float = (side_l + r) if lh else (side_r - r)
-		game.input.dpad_center = Vector2(cx, bottom - r)
-		game.input.dpad_radius = r
+		var dl := UiTheme.dpad_layout(get_viewport())
+		game.input.dpad_center = dl["center"]
+		game.input.dpad_radius = dl["outer"]
+		game.input.dpad_dead = dl["dead"]
 		dash_btn.position = Vector2((side_r - 150.0) if lh else side_l, bottom - 150.0)
 	else:
 		game.input.dpad_radius = 0.0
@@ -115,6 +115,9 @@ func _on_delivered(info: Dictionary) -> void:
 	var m: float = info["multiplier"]
 	banner_lbl.text = "DELIVERED!" if m <= 1.0 else "DELIVERED!  x%.1f" % m
 	_banner_t = 1.4
+	if info.has("new_district"):
+		banner_lbl.text = "ENTERING\n%s" % info["new_district"]
+		_banner_t = 2.4
 
 
 func _process(dt: float) -> void:
@@ -129,7 +132,7 @@ func _process(dt: float) -> void:
 	var best_key := "rush_best" if game.mode == "rush" else "high_score"
 	best_lbl.text = "BEST %d" % maxi(int(GameState.save[best_key]), game.score.score)
 	var streak := game.score.streak
-	info_lbl.text = "CROSSING %d" % game.crossing_number() + ("    STREAK %d  x%.1f" % [streak, game.score.multiplier()] if streak > 0 else "")
+	info_lbl.text = ("FREEWAY · " if game.district() == "freeway" else "") + "CROSSING %d" % game.crossing_number() + ("    STREAK %d  x%.1f" % [streak, game.score.multiplier()] if streak > 0 else "")
 	if game.mode == "rush":
 		rush_lbl.text = "RUSH %d/%d   %ds   %s (%s)" % [game.score.deliveries, Game.RUSH_DELIVERIES,
 			ceili(game.rush_time), game.objective.get("text", ""), game.objective_progress()]
@@ -169,7 +172,8 @@ func _draw() -> void:
 	draw_rect(Rect2(bx, by, w, 10), Color("2a2f40"))
 	draw_rect(Rect2(bx, by, w * frac, 10), Color("ff5d5d").lerp(Color("3dff6e"), frac))
 	if _dpad_mode():
-		_draw_dpad(game.input.dpad_center, game.input.dpad_radius)
+		var dl := UiTheme.dpad_layout(get_viewport())
+		UiTheme.draw_dpad(self, dl["center"], dl["outer"], dl["inner"], _dpad_dir)
 	# Touch feedback: a ring where you touched and an arrow for the hop it chose.
 	for tp in _taps:
 		var a: float = clampf(tp[2] / 0.3, 0.0, 1.0)
@@ -190,26 +194,8 @@ func _draw() -> void:
 			draw_circle(p, 7.0, UiTheme.YELLOW if i < game.dash_charges else Color("3a3f50"))
 
 
-func _arrow(c: Vector2, v: Vector2, s: float, col: Color) -> void:
-	var side := Vector2(-v.y, v.x)
-	var pts := PackedVector2Array([c + v * s, c - v * s * 0.6 + side * s, c - v * s * 0.6 - side * s])
-	draw_colored_polygon(pts, col)
-
-
-func _draw_dpad(c: Vector2, r: float) -> void:
-	draw_circle(c, r + 6.0, Color(0, 0, 0, 0.22))
-	draw_circle(c, r, Color(1, 1, 1, 0.07))
-	var arm := r * 0.36
-	for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
-		var v := Vector2(d.x, -d.y)
-		var side := Vector2(-v.y, v.x)
-		var lit: bool = _dpad_dir == d
-		var body := PackedVector2Array([c + side * arm * 0.95 + v * arm * 0.6, c + side * arm * 0.95 + v * r * 0.92,
-			c - side * arm * 0.95 + v * r * 0.92, c - side * arm * 0.95 + v * arm * 0.6])
-		draw_colored_polygon(body, Color(1, 0.84, 0.25, 0.75) if lit else Color(0.18, 0.21, 0.31, 0.62))
-		draw_polyline(body + PackedVector2Array([body[0]]), Color(0.04, 0.05, 0.09, 0.7), 3.0)
-		_arrow(c + v * r * 0.7, v, 13.0, Color(0.06, 0.07, 0.1, 0.9) if lit else Color(1, 1, 1, 0.85))
-	draw_circle(c, arm * 0.9, Color(0.18, 0.21, 0.31, 0.62))
+func _arrow(c: Vector2, v: Vector2, size: float, col: Color) -> void:
+	UiTheme.arrow(self, c, v, size, col)
 
 
 func _heart(c: Vector2, full: bool) -> void:

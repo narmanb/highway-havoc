@@ -24,7 +24,19 @@ func _ready() -> void:
 			GameState.settings["touch_mode"] = shot
 			main.start_game("arcade")
 		"rush": main.start_game("rush")
-		"settings": main.show_settings(main.show_title)
+		"settings", "settings_dpad", "settings_relative":
+			GameState.settings["touch_mode"] = {"settings": "swipe", "settings_dpad": "dpad", "settings_relative": "relative"}[shot]
+			main.show_settings(main.show_title)
+			if shot == "settings_dpad":
+				for c in main.screen.get_children():
+					if c.has_method("flash"): c.flash()
+		"freeway":
+			main.start_game("arcade")
+			await get_tree().process_frame
+			for i in 5:
+				main.game._deliver(0.0)
+				main.game.player.respawn(main.game.min_row(), 0.0)
+			main.game.camera.snap_to(C.row_to_y(main.game.min_row()))
 		"garage": main.show_garage()
 		"results":
 			main.start_game("arcade")

@@ -19,8 +19,9 @@ var settings := {
 	"music_vol": 0.6, "sfx_vol": 0.85, "shake": 1.0, "reduced_flash": false, "quality": 2,
 	"left_handed": false, "hold_edges": false, "double_tap_dash": false, "outlines": false,
 	"hardcore": false, "fps30": false, "repeat_rate": 0.16, "touch_mode": "swipe",
+	"repeat_delay": 0.24, "dpad_size": 125.0, "dpad_spread": 0.45,
 }
-var save := {"high_score": 0, "best_streak": 0, "total_deliveries": 0, "rush_best": 0, "palette": 0, "games": 0}
+var save := {"high_score": 0, "best_streak": 0, "total_deliveries": 0, "rush_best": 0, "palette": 0, "games": 0, "districts": ["downtown"]}
 var last_device_pad := false
 
 
@@ -110,6 +111,13 @@ func _bus(bus_name: String, vol: float) -> void:
 		AudioServer.set_bus_send(idx, "Master")
 	AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(vol, 0.0001)))
 	AudioServer.set_bus_mute(idx, vol <= 0.001)
+
+
+func unlock_district(id: String) -> void:
+	var d: Array = save["districts"]
+	if not d.has(id):
+		d.append(id)
+		_save()
 
 
 func add_delivery() -> void:

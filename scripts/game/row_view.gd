@@ -33,15 +33,15 @@ func _draw() -> void:
 	# Safe rows: decorative props in the margins + blocking props in play cells.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(row.spec.get("deco_seed", 1))
+	# Walkable flower planters (low) and solid trees (blocked cells).
+	for col in row.spec.get("planters", []):
+		Art.planter(self, Vector2(C.col_to_x(col), cy + 10), col)
 	for col in row.spec.get("blocked", []):
-		var p := Vector2(C.col_to_x(col), cy + 10)
-		if row.type == C.Row.MEDIAN:
-			Art.planter(self, p, col)
-		elif (col + row.index) % 2 == 0:
-			Art.tree(self, p, col + row.index)
-		else:
-			Art.planter(self, p, col)
-	_margin_props(rng, cy, t, q, view_half)
+		Art.tree(self, Vector2(C.col_to_x(col), cy + 10), col + row.index)
+	if row.style() == "city":
+		_margin_props(rng, cy, t, q, view_half)
+	else:
+		_freeway_props(rng, cy, t, q, view_half)
 	if row.signal_light != null:
 		_signal_poles(row.signal_light, cy, t)
 	if row.button_light != null:
@@ -70,6 +70,23 @@ func _margin_props(rng: RandomNumberGenerator, cy: float, t: float, q: int, view
 				_: Art.hydrant(self, p)
 		x += rng.randf_range(110, 190)
 		kind = rng.randi() % 5
+
+
+func _freeway_props(rng: RandomNumberGenerator, cy: float, t: float, q: int, view_half: float) -> void:
+	for s in [-1.0, 1.0]:
+		var bx: float = s * (C.PLAY_HALF_W + 8.0)
+		Art.cone(self, Vector2(bx, cy + 6))
+	var x := C.PLAY_HALF_W + 70.0 + rng.randf_range(0, 80)
+	var k := rng.randi() % 3
+	while x < view_half:
+		for s in [-1.0, 1.0]:
+			var p := Vector2(s * x, cy + 4)
+			match (k + int(s)) % 3:
+				0: Art.highway_sign(self, p, ["EXIT 12", "DOCKS", "DEPOT", "CITY", "EXIT 7"][int(x) % 5])
+				1: Art.lamp(self, p, t, q)
+				_: Art.sound_wall(self, p)
+		x += rng.randf_range(150, 240)
+		k = rng.randi() % 3
 
 
 func _bolt(p: Vector2, t: float) -> void:

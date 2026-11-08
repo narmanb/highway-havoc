@@ -139,9 +139,10 @@ func _template_for(index: int) -> String:
 	var prev := ""
 	if index > 0 and segments.size() >= index:
 		prev = segments[index - 1]["spec"]["template"]
-	var pick: String = RoadGenerator.ROTATION[rng.randi() % RoadGenerator.ROTATION.size()]
+	var rot: Array = RoadGenerator.DISTRICTS[RoadGenerator.district_for(index, mode)]["rotation"]
+	var pick: String = rot[rng.randi() % rot.size()]
 	if pick == prev:
-		pick = RoadGenerator.ROTATION[(RoadGenerator.ROTATION.find(pick) + 1) % RoadGenerator.ROTATION.size()]
+		pick = rot[(rot.find(pick) + 1) % rot.size()]
 	return pick
 
 
@@ -176,6 +177,7 @@ func _finish_task(block: bool) -> void:
 	var gen: Dictionary = spec["rows"][0]
 	live["button"] = gen.get("button", -1)
 	live["blocked"] = gen.get("blocked", [])
+	live["planters"] = gen.get("planters", [])
 	spec["rows"][0] = live
 	_create_segment(spec)
 
@@ -351,6 +353,22 @@ func level() -> int:
 	return _level_for(cur)
 
 
+func district() -> String:
+	return String(segments[cur]["spec"].get("district", "downtown"))
+
+
+func district_name() -> String:
+	return RoadGenerator.DISTRICTS[district()]["name"]
+
+
+## Visual standing height of a safe cell (planter boxes lift the robot a little).
+func stand_height(r: int, x: float) -> float:
+	var rs := row_state(r)
+	if rs == null or not rs.safe():
+		return 0.0
+	return 14.0 if rs.planter(C.x_to_col(x)) else 0.0
+
+
 func crossing_number() -> int:
 	return cur + 1
 
@@ -494,6 +512,7 @@ func _deliver(x: float) -> void:
 	var goal_rs := row_state(r)
 	var info := score.deliver(time_left(), level(), col == goal_rs.locker_col())
 	info["crossing_number"] = cur + 1
+	var old_district := district()
 	Audio.play("deliver")
 	fx.confetti(Vector2(x, C.row_to_y(r) - 30))
 	fx.popup(Vector2(x, C.row_to_y(r) - 90), "DELIVERED +%d" % info["total"], Color("ffd23f"), 38)
@@ -510,6 +529,9 @@ func _deliver(x: float) -> void:
 	last_safe_col = col
 	_request_next_segment()
 	_prune()
+	if district() != old_district:
+		info["new_district"] = district_name()
+		GameState.unlock_district(district())
 	delivered.emit(info)
 	if mode == "rush" and score.deliveries >= RUSH_DELIVERIES:
 		_end_run(1.0)

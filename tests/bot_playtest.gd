@@ -15,6 +15,8 @@ var causes := {}
 var mounts := 0
 var signals := 0
 var runs := 1
+var careful_deaths := -1
+var freeway_deliveries := 0
 
 
 func _ready() -> void:
@@ -29,6 +31,7 @@ func _start() -> void:
 	game.setup("arcade")
 	game.player.died.connect(func(c, _v): deaths += 1; causes[c] = causes.get(c, 0) + 1)
 	game.player.mounted.connect(func(_v): mounts += 1)
+	game.delivered.connect(func(_i): if game.segments[game.cur - 1]["spec"]["district"] == "freeway": freeway_deliveries += 1)
 	game.game_over.connect(func(_s): runs += 1; _start())
 
 
@@ -63,6 +66,8 @@ func _process(dt: float) -> void:
 	if think > 0.0:
 		return
 	think = REACTION
+	if t > SIM_SECONDS - 50.0 and careful_deaths < 0:
+		careful_deaths = deaths
 	if t > SIM_SECONDS - 50.0:
 		# Reckless phase: exercises death, respawn, game over and restart.
 		game._on_move(Vector2i(0, 1))
@@ -104,7 +109,8 @@ func _report() -> void:
 	print("  runs started: %d   deaths: %d %s" % [runs, deaths, causes])
 	print("  deliveries (all runs): %d   current score: %d   streak best: %d" % [total_deliveries, s.score, s.best_streak])
 	print("  roof mounts: %d   near misses: %d   signals used: %d" % [mounts, s.near_misses, s.signals_used])
+	print("  careful-phase deaths: %d   freeway deliveries: %d" % [careful_deaths, freeway_deliveries])
 	print("  generator: ", RoadGenerator.stats)
-	var ok := total_deliveries >= 8 and deaths >= 3 and runs >= 2
+	var ok := total_deliveries >= 8 and deaths >= 3 and runs >= 2 and freeway_deliveries >= 3
 	print("RESULT: ", "PASS" if ok else "FAIL")
 	get_tree().quit(0 if ok else 1)

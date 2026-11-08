@@ -296,9 +296,13 @@ static func _eyes(ci: CanvasItem, c: Vector2, col: Color, mood: String, t: float
 
 static func tree(ci: CanvasItem, p: Vector2, seed_v: int) -> void:
 	var g := Color("3f8f4a").lerp(Color("5aa846"), float(seed_v % 7) / 7.0)
-	ci.draw_rect(Rect2(p.x - 20, p.y - 12, 40, 18), Color("8a7f6c"))
-	ci.draw_rect(Rect2(p.x - 20, p.y - 16, 40, 6), Color("a39883"))
-	ci.draw_rect(Rect2(p.x - 3, p.y - 30, 6, 18), Color("6b4a2f"))
+	# Round iron tree grate (deliberately unlike the walkable square planters).
+	ci.draw_set_transform(Vector2(p.x, p.y - 6), 0.0, Vector2(1.0, 0.5))
+	ci.draw_circle(Vector2.ZERO, 24.0, Color("2b2e36"))
+	ci.draw_arc(Vector2.ZERO, 20.0, 0, TAU, 20, Color("4a4f5c"), 3.0)
+	ci.draw_arc(Vector2.ZERO, 12.0, 0, TAU, 16, Color("4a4f5c"), 3.0)
+	ci.draw_set_transform(Vector2.ZERO)
+	ci.draw_rect(Rect2(p.x - 4, p.y - 34, 8, 30), Color("6b4a2f"))
 	ci.draw_circle(Vector2(p.x + 4, p.y - 30), 22.0, Color(0, 0, 0, 0.18))
 	ci.draw_circle(Vector2(p.x, p.y - 40), 22.0, OUTLINE)
 	ci.draw_circle(Vector2(p.x, p.y - 40), 20.5, g.darkened(0.2))
@@ -346,3 +350,32 @@ static func kiosk(ci: CanvasItem, p: Vector2, col: Color) -> void:
 		ci.draw_rect(Rect2(p.x - 34 + i * 11.3, p.y + 14 - 46, 11.3, 10), col if i % 2 == 0 else Color.WHITE)
 	ci.draw_rect(Rect2(p.x - 22, p.y + 14 - 30, 44, 18), Color("2b3446"))
 	ci.draw_rect(Rect2(p.x - 18, p.y + 14 - 26, 12, 10), Color("ffd27a"))
+
+
+# ------------------------------------------------------------------ freeway props
+
+static func cone(ci: CanvasItem, p: Vector2) -> void:
+	ci.draw_rect(Rect2(p.x - 10, p.y - 2, 20, 5), OUTLINE)
+	ci.draw_colored_polygon(PackedVector2Array([Vector2(p.x - 8, p.y), Vector2(p.x + 8, p.y), Vector2(p.x + 2, p.y - 22), Vector2(p.x - 2, p.y - 22)]), Color("ff7a1a"))
+	ci.draw_rect(Rect2(p.x - 5, p.y - 13, 10, 4), Color.WHITE)
+
+
+static func highway_sign(ci: CanvasItem, p: Vector2, text: String) -> void:
+	for ox in [-26.0, 26.0]:
+		ci.draw_rect(Rect2(p.x + ox - 3, p.y - 74, 6, 76), Color("6b717d"))
+	var r := Rect2(p.x - 46, p.y - 104, 92, 38)
+	ci.draw_rect(r.grow(2.0), OUTLINE)
+	ci.draw_rect(r, Color("1f7a3f"))
+	ci.draw_rect(r.grow(-3.0), Color("1f7a3f"))
+	ci.draw_rect(Rect2(r.position + Vector2(3, 3), r.size - Vector2(6, 6)), Color(1, 1, 1, 0.0))
+	ci.draw_polyline(PackedVector2Array([r.position + Vector2(3, 3), r.position + Vector2(r.size.x - 3, 3),
+		r.end - Vector2(3, 3), r.position + Vector2(3, r.size.y - 3), r.position + Vector2(3, 3)]), Color.WHITE, 1.5)
+	var font := ThemeDB.fallback_font
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+	ci.draw_string(font, Vector2(p.x - w * 0.5, p.y - 80), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+
+
+static func sound_wall(ci: CanvasItem, p: Vector2) -> void:
+	box(ci, p.x - 60, p.x + 60, p.y - 10, p.y + 4, 0, 46, Color("b9b2a3"), Color("9a9384"))
+	for i in 5:
+		ci.draw_line(Vector2(p.x - 60 + i * 24, p.y + 4 - 44), Vector2(p.x - 60 + i * 24, p.y + 4), Color("847d6f"), 2.0)

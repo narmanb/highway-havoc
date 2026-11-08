@@ -225,99 +225,160 @@ func show_results(summary: Dictionary) -> void:
 
 # ---------------------------------------------------------------- settings
 
-func show_settings(back: Callable) -> void:
-	var root := _new_screen(0.75)
+func show_settings(back: Callable, focus_touch := false) -> void:
+	# Everything fits on one screen: compact slider rows (label | slider | value)
+	# and toggles in two columns. D-pad sliders only appear in D-pad mode.
+	var root := _new_screen(0.8)
+	var m := UiTheme.safe_margins(get_viewport())
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var m := UiTheme.safe_margins(get_viewport())
-	margin.add_theme_constant_override("margin_top", int(m["top"]) + 30)
-	margin.add_theme_constant_override("margin_bottom", int(m["bottom"]) + 30)
-	margin.add_theme_constant_override("margin_left", 30)
-	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_top", int(m["top"]) + 18)
+	margin.add_theme_constant_override("margin_bottom", int(m["bottom"]) + 18)
+	margin.add_theme_constant_override("margin_left", int(m["left"]) + 22)
+	margin.add_theme_constant_override("margin_right", int(m["right"]) + 22)
 	root.add_child(margin)
-	var outer := VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 16)
-	margin.add_child(outer)
-	outer.add_child(UiTheme.label("SETTINGS", 48, UiTheme.YELLOW))
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.follow_focus = true
-	outer.add_child(scroll)
 	var cc := CenterContainer.new()
-	cc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(cc)
+	margin.add_child(cc)
 	var v := VBoxContainer.new()
-	v.custom_minimum_size = Vector2(600, 0)
-	v.add_theme_constant_override("separation", 12)
+	v.custom_minimum_size = Vector2(660, 0)
+	v.add_theme_constant_override("separation", 8)
 	cc.add_child(v)
-	# Touch control scheme (first, it's the one players most want to change).
-	var help := UiTheme.label("", 22, Color("c9d1e8"))
-	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	help.custom_minimum_size = Vector2(600, 0)
-	var tb := UiTheme.button("", func(): pass, 88)
-	var refresh_touch := func():
-		var tm: String = GameState.settings["touch_mode"]
-		tb.text = "Touch: %s" % GameState.TOUCH_MODE_NAMES[tm]
-		help.text = GameState.TOUCH_MODE_HELP[tm]
-	refresh_touch.call()
-	tb.pressed.connect(func():
+	v.add_child(UiTheme.label("SETTINGS", 40, UiTheme.YELLOW))
+
+	# Touch scheme
+	var tm: String = GameState.settings["touch_mode"]
+	var tb := UiTheme.button("Touch: %s" % GameState.TOUCH_MODE_NAMES[tm], func():
 		var i := GameState.TOUCH_MODES.find(GameState.settings["touch_mode"])
 		GameState.set_setting("touch_mode", GameState.TOUCH_MODES[(i + 1) % GameState.TOUCH_MODES.size()])
-		refresh_touch.call())
+		show_settings(back, true), 68)
+	tb.add_theme_font_size_override("font_size", 28)
 	v.add_child(tb)
+	var help := UiTheme.label(GameState.TOUCH_MODE_HELP[tm], 19, Color("c9d1e8"))
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help.custom_minimum_size = Vector2(660, 0)
 	v.add_child(help)
-	var first := tb
-	_slider(v, "Music", "music_vol", 0.0, 1.0)
-	_slider(v, "Sound effects", "sfx_vol", 0.0, 1.0)
-	_slider(v, "Screen shake", "shake", 0.0, 1.5)
-	_slider(v, "Hold-repeat delay", "repeat_rate", 0.10, 0.30)
+
+	var pct := func(x: float) -> String: return "%d%%" % roundi(x * 100.0)
+	var set_key := func(key: String): return func(x: float): GameState.set_setting(key, x)
+	var get_key := func(key: String): return func() -> float: return float(GameState.settings[key])
+	var first := _slider_row(v, "Music", 0.0, 1.0, 0.05, get_key.call("music_vol"), set_key.call("music_vol"), pct)
+	_slider_row(v, "Sound FX", 0.0, 1.0, 0.05, get_key.call("sfx_vol"), set_key.call("sfx_vol"), pct)
+	_slider_row(v, "Screen shake", 0.0, 1.5, 0.05, get_key.call("shake"), set_key.call("shake"), pct)
+	# Repeat speed is shown as hops per second, so right = faster.
+	_slider_row(v, "Repeat speed", 3.0, 10.0, 0.5,
+		func() -> float: return 1.0 / float(GameState.settings["repeat_rate"]),
+		func(x: float): GameState.set_setting("repeat_rate", 1.0 / x),
+		func(x: float) -> String: return "%.1f hops/s" % x)
+	_slider_row(v, "Repeat starts", 0.12, 0.45, 0.01, get_key.call("repeat_delay"), set_key.call("repeat_delay"),
+		func(x: float) -> String: return "after %.2fs" % x)
+	if tm == "dpad":
+		var preview := DpadPreview.new()
+		root.add_child(preview)
+		var poke := func(x: float, key: String):
+			GameState.set_setting(key, x)
+			preview.flash()
+		_slider_row(v, "D-pad size", 90.0, 170.0, 5.0, get_key.call("dpad_size"), poke.bind("dpad_size"),
+			func(x: float) -> String: return "%d" % roundi(x))
+		_slider_row(v, "Arrow spread", 0.0, 1.0, 0.05, get_key.call("dpad_spread"), poke.bind("dpad_spread"), pct)
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 8)
+	v.add_child(grid)
 	var q := ["LOW", "MEDIUM", "HIGH"]
-	var qb := UiTheme.button("Effects: %s" % q[GameState.quality()], func(): pass, 80)
+	var qb := _small_button("Effects: %s" % q[GameState.quality()])
 	qb.pressed.connect(func():
+		Audio.play("ui_select")
 		GameState.set_setting("quality", (GameState.quality() + 1) % 3)
 		qb.text = "Effects: %s" % q[GameState.quality()])
-	v.add_child(qb)
-	_toggle(v, "Reduced flashing", "reduced_flash")
-	_toggle(v, "High-contrast outlines", "outlines")
-	_toggle(v, "Left-handed layout", "left_handed")
-	_toggle(v, "Hold screen edges to hop", "hold_edges")
-	_toggle(v, "Double-tap to dash (tap no longer hops)", "double_tap_dash")
-	_toggle(v, "Hardcore (one heart)", "hardcore")
-	_toggle(v, "30 FPS battery saver", "fps30")
-	var done := UiTheme.button("BACK", back)
-	outer.add_child(done)
-	_focus_first(first)
+	grid.add_child(qb)
+	_toggle(grid, "Reduced flashing", "reduced_flash")
+	_toggle(grid, "High contrast", "outlines")
+	_toggle(grid, "Left-handed", "left_handed")
+	if tm == "swipe":
+		_toggle(grid, "Hold edges to hop", "hold_edges")
+		_toggle(grid, "Double-tap dash", "double_tap_dash")
+	_toggle(grid, "Hardcore (1 heart)", "hardcore")
+	_toggle(grid, "30 FPS saver", "fps30")
+	var done := UiTheme.button("BACK", back, 76)
+	v.add_child(done)
+	_focus_first(tb if focus_touch else first)
 
 
-func _slider(parent: Control, text: String, key: String, lo: float, hi: float) -> HSlider:
-	var l := UiTheme.label(text, 26, Color("c9d1e8"))
+func _small_button(text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(325, 62)
+	b.add_theme_font_size_override("font_size", 23)
+	b.focus_entered.connect(func(): Audio.play("ui_move"))
+	return b
+
+
+## One compact row: label | slider | live value.
+func _slider_row(parent: Control, text: String, lo: float, hi: float, step: float,
+		getter: Callable, setter: Callable, fmt: Callable) -> HSlider:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var l := UiTheme.label(text, 23, Color("c9d1e8"))
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	parent.add_child(l)
+	l.custom_minimum_size = Vector2(170, 52)
 	var s := HSlider.new()
 	s.min_value = lo
 	s.max_value = hi
-	s.step = (hi - lo) / 20.0
-	s.value = float(GameState.settings[key])
-	s.custom_minimum_size = Vector2(0, 48)
-	s.value_changed.connect(func(val): GameState.set_setting(key, val))
-	parent.add_child(s)
+	s.step = step
+	s.value = clampf(getter.call(), lo, hi)
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	s.custom_minimum_size = Vector2(0, 44)
+	var val := UiTheme.label(fmt.call(s.value), 21, Color.WHITE)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	val.custom_minimum_size = Vector2(150, 52)
+	s.value_changed.connect(func(x):
+		setter.call(x)
+		val.text = fmt.call(x))
+	row.add_child(l)
+	row.add_child(s)
+	row.add_child(val)
+	parent.add_child(row)
 	return s
 
 
 func _toggle(parent: Control, text: String, key: String) -> void:
-	var b := Button.new()
+	var b := _small_button("")
 	b.toggle_mode = true
 	b.button_pressed = bool(GameState.settings[key])
-	b.custom_minimum_size = Vector2(0, 76)
-	b.add_theme_font_size_override("font_size", 26)
-	var refresh := func(): b.text = ("[ON]   " if b.button_pressed else "[OFF]  ") + text
+	var refresh := func(): b.text = ("ON  " if b.button_pressed else "OFF  ") + text
 	refresh.call()
 	b.toggled.connect(func(on):
 		Audio.play("ui_select")
 		GameState.set_setting(key, on)
 		refresh.call())
 	parent.add_child(b)
+
+
+## Shows the real in-game D-pad (position, size and spread) while its sliders move.
+class DpadPreview:
+	extends Control
+	var _t := 0.0
+
+	func _init() -> void:
+		set_anchors_preset(Control.PRESET_FULL_RECT)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func flash() -> void:
+		_t = 1.6
+
+	func _process(dt: float) -> void:
+		if _t > 0.0:
+			_t -= dt
+			queue_redraw()
+
+	func _draw() -> void:
+		if _t <= 0.0:
+			return
+		var dl := UiTheme.dpad_layout(get_viewport())
+		UiTheme.draw_dpad(self, dl["center"], dl["outer"], dl["inner"], Vector2i.ZERO, clampf(_t / 0.4, 0.0, 1.0))
 
 
 # ---------------------------------------------------------------- garage

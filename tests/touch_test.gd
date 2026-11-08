@@ -27,6 +27,7 @@ func _ready() -> void:
 	await _test_relative()
 	await _test_dpad()
 	await _test_swipe()
+	await _test_planter()
 	GameState.settings["touch_mode"] = "swipe"
 	print("\n%d checks, %d failures" % [checks, failures])
 	get_tree().quit(1 if failures > 0 else 0)
@@ -139,3 +140,20 @@ func _test_swipe() -> void:
 	got.clear()
 	await _touch(p)
 	check(got == [Vector2i(0, 1)], "swipe: tap -> forward (%s)" % [got])
+
+
+func _test_planter() -> void:
+	await _start("swipe")
+	var g: Game = main.game
+	var rs: RowState = g.row_state(0)
+	rs.spec["planters"] = [3]
+	rs.spec["blocked"] = [1]
+	g._on_move(Vector2i(-1, 0))
+	await _frames(20)
+	check(C.x_to_col(g.player.px) == 3 and g.player.stand_z > 10.0, "robot hops up onto a flower planter (col %d, lift %.0f)" % [C.x_to_col(g.player.px), g.player.stand_z])
+	g._on_move(Vector2i(-1, 0))
+	await _frames(20)
+	check(C.x_to_col(g.player.px) == 2 and g.player.stand_z < 1.0, "and back down (col %d)" % C.x_to_col(g.player.px))
+	g._on_move(Vector2i(-1, 0))
+	await _frames(20)
+	check(C.x_to_col(g.player.px) == 2, "a tree still blocks (col %d)" % C.x_to_col(g.player.px))

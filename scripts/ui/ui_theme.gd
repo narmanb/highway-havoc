@@ -111,3 +111,44 @@ static func safe_margins(vp: Viewport) -> Dictionary:
 	out["right"] = maxf(0.0, win.x - safe.end.x) * sx
 	out["bottom"] = maxf(0.0, win.y - safe.end.y) * sy
 	return out
+
+
+## Where the on-screen D-pad sits and how big it is, from Settings. Shared by the
+## HUD, the input router and the settings preview so they always agree.
+static func dpad_layout(vp: Viewport) -> Dictionary:
+	var m := safe_margins(vp)
+	var s := vp.get_visible_rect().size
+	var outer: float = float(GameState.settings.get("dpad_size", 125.0))
+	var k: float = float(GameState.settings.get("dpad_spread", 0.45))
+	var inner: float = outer * (0.12 + 0.4 * k)
+	var bottom: float = s.y - m["bottom"] - 28.0
+	var cx: float
+	if GameState.settings["left_handed"]:
+		cx = m["left"] + 28.0 + outer
+	else:
+		cx = s.x - m["right"] - 28.0 - outer
+	return {"center": Vector2(cx, bottom - outer), "outer": outer, "inner": inner, "dead": maxf(12.0, inner * 0.8)}
+
+
+static func arrow(ci: CanvasItem, c: Vector2, v: Vector2, size: float, col: Color) -> void:
+	var side := Vector2(-v.y, v.x)
+	ci.draw_colored_polygon(PackedVector2Array([c + v * size, c - v * size * 0.6 + side * size, c - v * size * 0.6 - side * size]), col)
+
+
+## Draws the translucent D-pad. `inner` is where the arms start (the arrow spread).
+static func draw_dpad(ci: CanvasItem, c: Vector2, outer: float, inner: float, lit: Vector2i, alpha := 1.0) -> void:
+	ci.draw_circle(c, outer + 6.0, Color(0, 0, 0, 0.22 * alpha))
+	ci.draw_circle(c, outer, Color(1, 1, 1, 0.07 * alpha))
+	var half_w := outer * 0.34
+	for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		var v := Vector2(d.x, -d.y)
+		var side := Vector2(-v.y, v.x)
+		var on: bool = lit == d
+		var a := c + v * inner
+		var b := c + v * outer * 0.95
+		var body := PackedVector2Array([a + side * half_w, b + side * half_w, b - side * half_w, a - side * half_w])
+		ci.draw_colored_polygon(body, Color(1, 0.84, 0.25, 0.75 * alpha) if on else Color(0.18, 0.21, 0.31, 0.62 * alpha))
+		ci.draw_polyline(body + PackedVector2Array([body[0]]), Color(0.04, 0.05, 0.09, 0.7 * alpha), 3.0)
+		arrow(ci, (a + b) * 0.5, v, minf(13.0, (outer - inner) * 0.22),
+			Color(0.06, 0.07, 0.1, 0.9 * alpha) if on else Color(1, 1, 1, 0.85 * alpha))
+	ci.draw_circle(c, minf(inner * 0.85, half_w), Color(0.18, 0.21, 0.31, 0.5 * alpha))

@@ -21,6 +21,7 @@ func _initialize() -> void:
 	test_generator_fairness()
 	test_validator_rejects_unfair()
 	test_determinism()
+	test_districts()
 	test_score()
 	print("\n%d checks, %d failures (%.1fs)" % [checks, failures, (Time.get_ticks_msec() - t0) / 1000.0])
 	quit(1 if failures > 0 else 0)
@@ -112,6 +113,11 @@ func test_generator_fairness() -> void:
 				# Structure checks.
 				var rows: Array = spec["rows"]
 				check(rows[0]["type"] == C.Row.SIDEWALK and rows[rows.size() - 1]["type"] == C.Row.SIDEWALK, "segment bounded by sidewalks")
+				for r in rows:
+					var pl: Array = r.get("planters", [])
+					for c in pl:
+						check(not (r.get("blocked", []) as Array).has(c) and r.get("button", -1) != c, "planters never overlap trees or the button")
+				check(spec["district"] == RoadGenerator.district_of_template(name), "district tagged")
 				if not spec["light"].is_empty():
 					var br: Dictionary = rows[spec["light"]["button_row"]]
 					check(not (br.get("blocked", []) as Array).has(spec["light"]["column"]), "button cell is free")
@@ -142,6 +148,22 @@ func test_validator_rejects_unfair() -> void:
 	for k in 200:
 		open_lane.append(PackedFloat32Array([-5000.0, -4000.0]))
 	check(SafePathValidator._search(srows, {1: open_lane}, 0, 150, 4) == 2, "search finds a two-hop path over an empty lane")
+
+
+func test_districts() -> void:
+	check(RoadGenerator.district_for(0, "arcade") == "downtown" and RoadGenerator.district_for(4, "arcade") == "downtown", "crossings 1-5 downtown")
+	check(RoadGenerator.district_for(5, "arcade") == "freeway" and RoadGenerator.district_for(9, "arcade") == "freeway", "crossings 6-10 freeway")
+	check(RoadGenerator.district_for(10, "arcade") == "downtown", "then back to downtown")
+	var rng := RandomNumberGenerator.new()
+	var spec := RoadGenerator.generate(99, 5, 6, "Truck Convoy", RoadGenerator.make_start_row(rng))
+	var dirs := []
+	for r in spec["rows"]:
+		if r["type"] == C.Row.ROAD:
+			dirs.append(r["dir"])
+		elif r.get("style", "") == "barrier":
+			dirs.append(0)
+	# Freeway carriageways: one direction per side of each barrier.
+	check(dirs == [dirs[0], dirs[0], 0, -dirs[0], -dirs[0], 0, dirs[0], dirs[0]], "freeway lanes flip only at barriers %s" % [dirs])
 
 
 func test_determinism() -> void:

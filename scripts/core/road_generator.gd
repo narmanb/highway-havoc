@@ -5,8 +5,11 @@ extends RefCounted
 ## until SafePathValidator confirms a humane crossing exists.
 ##
 ## Template row codes:  "L:<mix>" road lane, "L:<mix>:g" lane controlled by the
-## crosswalk signal, "M" safe median, "S" goal sidewalk. Row 0 (the start
-## sidewalk) is implicit: it is the previous segment's goal.
+## crosswalk signal, "M" safe median, "J" freeway barrier median (safe), "S" goal
+## sidewalk. Row 0 (the start sidewalk) is implicit: it is the previous segment's goal.
+##
+## Safe-row props: "blocked" cells hold trees (solid, obviously in the way);
+## "planters" are low flower boxes the robot can hop up onto (purely cosmetic).
 
 const MIXES := {
 	"city":  [["car", 6.0], ["moto", 2.0]],
@@ -14,8 +17,9 @@ const MIXES := {
 	"truck": [["truck", 5.0], ["car", 3.0]],
 	"fast":  [["moto", 5.0], ["car", 3.0]],
 	"mixed": [["car", 4.0], ["truck", 2.0], ["bus", 1.0], ["moto", 1.0]],
+	"haul":  [["truck", 5.0], ["car", 2.0], ["bus", 1.0]],
 }
-const MIX_SPEED := {"city": 1.0, "bus": 0.8, "truck": 0.9, "fast": 1.3, "mixed": 1.0}
+const MIX_SPEED := {"city": 1.0, "bus": 0.8, "truck": 0.9, "fast": 1.3, "mixed": 1.0, "haul": 1.0}
 
 const TEMPLATES := {
 	"Quiet Block":    ["L:city:g", "L:truck:g", "M", "L:city", "S"],
@@ -23,9 +27,32 @@ const TEMPLATES := {
 	"Bus Corridor":   ["L:bus", "L:city", "M", "L:truck:g", "L:mixed:g", "L:bus:g", "S"],
 	"Delivery Alley": ["L:city:g", "L:truck:g", "L:truck:g", "M", "L:fast", "L:city", "L:mixed", "S"],
 	"Twin Avenues":   ["L:city:g", "L:fast:g", "M", "L:truck", "L:mixed", "M", "L:bus", "L:city", "S"],
+	# Freeway Frenzy: fast one-way carriageways split by concrete barrier medians.
+	"Six-Lane Sprint": ["L:haul", "L:mixed", "L:fast", "J", "L:fast", "L:haul", "L:mixed", "S"],
+	"Truck Convoy":    ["L:haul", "L:haul", "J", "L:haul", "L:mixed", "J", "L:fast", "L:haul", "S"],
+	"Interchange":     ["L:fast", "L:mixed", "L:haul", "J", "L:fast", "L:fast", "J", "L:haul", "L:mixed", "S"],
 }
 const INTRO_TEMPLATE := "Quiet Block"
 const ROTATION := ["Main Street", "Bus Corridor", "Delivery Alley", "Twin Avenues"]
+
+const DISTRICTS := {
+	"downtown": {"name": "DOWNTOWN RUSH", "rotation": ROTATION, "speed": 1.0},
+	"freeway": {"name": "FREEWAY FRENZY", "rotation": ["Six-Lane Sprint", "Truck Convoy", "Interchange"], "speed": 1.3},
+}
+const FREEWAY_TEMPLATES := ["Six-Lane Sprint", "Truck Convoy", "Interchange"]
+const CROSSINGS_PER_DISTRICT := 5
+
+
+## Which district a segment belongs to. Arcade alternates every 5 crossings
+## (Downtown, Freeway, Downtown...); Delivery Rush ends with two freeway crossings.
+static func district_for(index: int, mode: String) -> String:
+	if mode == "rush":
+		return "freeway" if index >= 3 else "downtown"
+	return "freeway" if (index / CROSSINGS_PER_DISTRICT) % 2 == 1 else "downtown"
+
+
+static func district_of_template(template_name: String) -> String:
+	return "freeway" if FREEWAY_TEMPLATES.has(template_name) else "downtown"
 
 static var stats := {"generated": 0, "rerolls": 0, "eased": 0}
 
@@ -35,8 +62,9 @@ static func level_speed_mult(level: int) -> float:
 
 
 static func make_start_row(rng: RandomNumberGenerator) -> Dictionary:
-	return {"type": C.Row.SIDEWALK, "blocked": _random_props(rng, [C.CENTER_COL], 2, OUTER_COLS), "button": -1,
-		"locker": -1, "deco_seed": rng.randi()}
+	var blocked := _random_props(rng, [C.CENTER_COL], 1, OUTER_COLS)
+	return {"type": C.Row.SIDEWALK, "blocked": blocked, "planters": _random_props(rng, blocked + [C.CENTER_COL], 1, OUTER_COLS),
+		"button": -1, "locker": -1, "deco_seed": rng.randi()}
 
 
 const OUTER_COLS := [0, 1, 7, 8]
@@ -82,7 +110,9 @@ static func _build(run_seed: int, index: int, level: int, template_name: String,
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([run_seed, index, attempt, template_name])
 	var tmpl: Array = TEMPLATES[template_name]
-	var smult := level_speed_mult(level) * pow(0.88, ease)
+	var district := district_of_template(template_name)
+	var style := "freeway" if district == "freeway" else "city"
+	var smult := level_speed_mult(level) * pow(0.88, ease) * float(DISTRICTS[district]["speed"])
 	var gap_min := maxf(C.MIN_GAP_SECONDS, 1.55 - 0.05 * float(level - 1)) + 0.15 * ease
 	var gap_max := maxf(gap_min + 0.9, 3.4 - 0.12 * float(level - 1)) + 0.3 * ease
 
@@ -99,21 +129,30 @@ static func _build(run_seed: int, index: int, level: int, template_name: String,
 					has_truck = true
 				var base := rng.randf_range(115.0, 190.0) * float(MIX_SPEED[mix_name])
 				rows.append({
-					"type": C.Row.ROAD, "dir": dir, "speed": base * smult,
+					"type": C.Row.ROAD, "dir": dir, "speed": base * smult, "style": style,
 					"mix": MIXES[mix_name], "mix_name": mix_name,
 					"gap_min": gap_min, "gap_max": gap_max,
 					"seed": rng.randi(), "deco_seed": rng.randi(),
 				})
 				if parts.size() > 2 and parts[2] == "g":
 					light_rows.append(rows.size() - 1)
-				if rng.randf() < 0.72:
+				if style == "city" and rng.randf() < 0.72:
 					dir = -dir
 			"M":
-				rows.append({"type": C.Row.MEDIAN, "blocked": _random_props(rng, [], 2), "deco_seed": rng.randi(), "button": -1})
+				var trees := _random_props(rng, [], 1)
+				rows.append({"type": C.Row.MEDIAN, "blocked": trees, "planters": _random_props(rng, trees, 2),
+					"deco_seed": rng.randi(), "button": -1, "style": style})
+			"J":
+				# Freeway barrier median: always open, and traffic flips direction across it.
+				rows.append({"type": C.Row.MEDIAN, "blocked": [], "planters": [], "deco_seed": rng.randi(),
+					"button": -1, "style": "barrier"})
+				dir = -dir
 			"S":
 				var locker := rng.randi_range(1, C.COLS - 2)
-				rows.append({"type": C.Row.SIDEWALK, "blocked": _random_props(rng, [C.CENTER_COL, locker], 2, OUTER_COLS),
-					"button": -1, "locker": locker, "deco_seed": rng.randi()})
+				var sblocked := _random_props(rng, [C.CENTER_COL, locker], 1, OUTER_COLS)
+				rows.append({"type": C.Row.SIDEWALK, "blocked": sblocked,
+					"planters": _random_props(rng, sblocked + [C.CENTER_COL, locker], 1, OUTER_COLS),
+					"button": -1, "locker": locker, "deco_seed": rng.randi(), "style": style})
 	if not has_truck:
 		# Milestone promise: every crossing offers at least one rideable roof.
 		for i in range(1, rows.size()):
@@ -132,6 +171,7 @@ static func _build(run_seed: int, index: int, level: int, template_name: String,
 		if blocked.has(col) or brow.get("locker", -1) == col:
 			col = C.CENTER_COL if not blocked.has(C.CENTER_COL) else col
 			blocked.erase(col)
+		(brow.get("planters", []) as Array).erase(col)
 		brow["button"] = col
 		light = {"lanes": light_rows, "column": col, "button_row": below}
 
@@ -149,7 +189,7 @@ static func _build(run_seed: int, index: int, level: int, template_name: String,
 		if r["type"] == C.Row.ROAD:
 			road_count += 1
 	return {
-		"template": template_name, "level": level, "seed": run_seed, "index": index,
+		"template": template_name, "district": district, "level": level, "seed": run_seed, "index": index,
 		"rows": rows, "light": light, "pickups": pickups,
 		"par_time": 5.0 + 1.6 * float(road_count), "start_col": C.CENTER_COL,
 	}

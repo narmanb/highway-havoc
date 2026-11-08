@@ -22,7 +22,6 @@ const FLICK_MIN := 14.0            # shorter than this on release = a tap
 const RELATIVE_DEAD_ZONE := 30.0   # touches right on the robot are ignored
 const TAP_MAX_TIME := 0.28
 const DOUBLE_TAP := 0.32
-const HOLD_DELAY := 0.24
 const STICK_ON := 0.6
 const STICK_OFF := 0.3
 
@@ -30,7 +29,8 @@ var enabled := true
 var exclusion: Array = []           # Controls whose rects never start gestures
 var player_screen_pos: Callable     # () -> Vector2: robot centre in viewport coordinates
 var dpad_center := Vector2.ZERO     # on-screen D-pad (set by the HUD in D-pad mode)
-var dpad_radius := 0.0
+var dpad_radius := 0.0              # outer radius of the arms
+var dpad_dead := 0.0                # centre dead zone (grows with arrow spread)
 
 var _touches := {}
 var _last_tap := -10.0
@@ -48,6 +48,11 @@ const DIRS := {
 
 func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
+
+
+## Pause between the first hop and the start of repeating (Settings > "Repeat starts after").
+func _hold_delay() -> float:
+	return float(GameState.settings.get("repeat_delay", 0.24))
 
 
 func _repeat_rate() -> float:
@@ -74,7 +79,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			move.emit(DIRS[a])
 			_held_action = a
 			_held_dir = DIRS[a]
-			_hold_timer = HOLD_DELAY
+			_hold_timer = _hold_delay()
 			get_viewport().set_input_as_handled()
 			return
 		if event.is_action_released(a) and a == _held_action:
@@ -128,7 +133,7 @@ func _poll_stick(dt: float) -> void:
 		_stick_dir = d
 		if d != Vector2i.ZERO:
 			move.emit(d)
-			_stick_timer = HOLD_DELAY
+			_stick_timer = _hold_delay()
 	elif d != Vector2i.ZERO:
 		_stick_timer -= dt
 		if _stick_timer <= 0.0:
@@ -198,7 +203,7 @@ func _touch(e: InputEventScreenTouch) -> void:
 			t["hold_dir"] = d
 			_emit_touch(d, e.position)
 		elif mode == "dpad" and _in_dpad(e.position):
-			var d2 := dir_from(e.position - dpad_center, dpad_radius * 0.2)
+			var d2 := dir_from(e.position - dpad_center, dpad_dead)
 			t["kind"] = "dpad"
 			t["hold_dir"] = d2
 			_emit_touch(d2, e.position)
@@ -246,7 +251,7 @@ func _drag(e: InputEventScreenDrag) -> void:
 			return  # the hold logic re-reads the finger position
 		"dpad":
 			# Sliding the thumb onto another arm hops that way immediately.
-			var d := dir_from(e.position - dpad_center, dpad_radius * 0.2)
+			var d := dir_from(e.position - dpad_center, dpad_dead)
 			if d != t["hold_dir"]:
 				t["hold_dir"] = d
 				t["holding"] = false
@@ -269,7 +274,7 @@ func _poll_touch_hold(dt: float) -> void:
 		if t["kind"] == "swipe" and not GameState.settings["hold_edges"]:
 			continue
 		t["hold_t"] += dt
-		var due: bool = (not t["holding"] and t["hold_t"] >= HOLD_DELAY) or (t["holding"] and t["hold_t"] >= _repeat_rate())
+		var due: bool = (not t["holding"] and t["hold_t"] >= _hold_delay()) or (t["holding"] and t["hold_t"] >= _repeat_rate())
 		if not due:
 			continue
 		t["holding"] = true

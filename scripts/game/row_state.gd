@@ -24,6 +24,17 @@ func blocked(col: int) -> bool:
 	return (spec.get("blocked", []) as Array).has(col)
 
 
+## Low flower box: walkable, the robot just stands a little higher on it.
+func planter(col: int) -> bool:
+	if type == C.Row.ROAD:
+		return false
+	return (spec.get("planters", []) as Array).has(col)
+
+
+func style() -> String:
+	return String(spec.get("style", "city"))
+
+
 func safe() -> bool:
 	return type != C.Row.ROAD
 
