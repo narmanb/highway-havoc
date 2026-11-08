@@ -1,0 +1,36 @@
+class_name RowState
+extends RefCounted
+## Runtime data for one world row.
+
+var index := 0
+var spec: Dictionary
+var type := C.Row.SIDEWALK
+var lane: LaneSim = null
+var light: TrafficLight = null      # light controlling this lane (road rows)
+var button_light: TrafficLight = null  # light whose push button sits on this safe row
+var signal_light: TrafficLight = null  # light whose poles stand on this safe row
+var seg := 0
+var is_goal := false
+var pickups: Array = []             # columns holding a bolt pickup
+var above: RowState = null
+var below: RowState = null
+var ground: Node2D
+var view: Node2D
+
+
+func blocked(col: int) -> bool:
+	if type == C.Row.ROAD:
+		return false
+	return (spec.get("blocked", []) as Array).has(col)
+
+
+func safe() -> bool:
+	return type != C.Row.ROAD
+
+
+func button_col() -> int:
+	return int(spec.get("button", -1))
+
+
+func locker_col() -> int:
+	return int(spec.get("locker", -1)) if is_goal else -1
