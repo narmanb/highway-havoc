@@ -83,6 +83,7 @@ func setup(p_mode: String) -> void:
 	input.move.connect(_on_move)
 	input.dash.connect(_on_dash)
 	input.brake.connect(_on_brake)
+	input.player_screen_pos = _player_screen_pos
 	input.pause_pressed.connect(func(): if not over and mode != "attract": pause_requested.emit())
 	Art.outline_mode = GameState.settings["outlines"]
 
@@ -309,6 +310,14 @@ func _prune() -> void:
 
 
 # ------------------------------------------------------------ queries (used by player/views)
+
+## Robot body centre in viewport (screen) coordinates, for "tap toward robot" controls.
+func _player_screen_pos() -> Vector2:
+	if player == null:
+		return camera.view_size() * 0.5
+	var world := Vector2(player.px, player.position.y - float(player.get_meta("bias", C.PLAYER_HALF_H)) - 26.0 - player.roof_z)
+	return get_viewport().get_canvas_transform() * world
+
 
 func row_state(r: int) -> RowState:
 	return rows.get(r)

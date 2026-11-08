@@ -18,7 +18,7 @@ const PALETTES := [
 var settings := {
 	"music_vol": 0.6, "sfx_vol": 0.85, "shake": 1.0, "reduced_flash": false, "quality": 2,
 	"left_handed": false, "hold_edges": false, "double_tap_dash": false, "outlines": false,
-	"hardcore": false, "fps30": false, "repeat_rate": 0.16,
+	"hardcore": false, "fps30": false, "repeat_rate": 0.16, "touch_mode": "swipe",
 }
 var save := {"high_score": 0, "best_streak": 0, "total_deliveries": 0, "rush_best": 0, "palette": 0, "games": 0}
 var last_device_pad := false
@@ -64,6 +64,15 @@ func _setup_input() -> void:
 			j.button_index = b
 			j.device = -1
 			InputMap.action_add_event(action, j)
+
+
+const TOUCH_MODES := ["swipe", "relative", "dpad"]
+const TOUCH_MODE_NAMES := {"swipe": "Swipe", "relative": "Tap toward robot", "dpad": "On-screen D-pad"}
+const TOUCH_MODE_HELP := {
+	"swipe": "Swipe to hop. Tap hops forward.",
+	"relative": "Touch anywhere: the robot hops toward your finger (closest of 4 directions). Hold to keep going.",
+	"dpad": "Big see-through D-pad. Press, hold to repeat, or slide your thumb between arms.",
+}
 
 
 func quality() -> int:

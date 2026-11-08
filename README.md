@@ -30,7 +30,10 @@ Not in this milestone, as the design document asks: pileups, rain/Storm Night, t
 
 ## How to play
 
-* **Swipe** in any direction to hop one cell. **Tap** hops forward. A quick second swipe is queued and runs as soon as you land.
+* **Touch controls** — three schemes, switch any time in Settings → *Touch* (also reachable from the pause menu):
+  * **Swipe** (default): swipe to hop one cell, tap hops forward. A quick second swipe is queued and runs when you land. Short flicks count as swipes, never as a forward tap.
+  * **Tap toward robot**: touch anywhere and the robot hops in whichever of the four directions is closest to your finger, measured from the robot (far left of the screen → left, below the robot → down; a lower-left touch picks left or down, whichever is larger). Hold to keep hopping; it stops once the robot reaches your finger. A ring and arrow show the hop it picked.
+  * **On-screen D-pad**: a large translucent D-pad under your steering thumb (right side, or left with Left-handed layout on) with Dash on the other side. Press to hop, hold to repeat, slide between arms to change direction. The camera sits a little higher so the pad doesn't cover the lane behind you.
 * **DASH** (button, gamepad A, Space) leaps two cells. You start with 2 charges, gain one per delivery and one for every 3 bolts, up to 3. Dashing skips the middle row, but the landing row is still checked.
 * Step onto the **green hand pad** at the foot of a crosswalk. The light turns amber, then red. The walking figure (and a white countdown ring) appears only once the crosswalk is actually clear. A flashing orange hand means traffic is about to move again.
 * Land on the **yellow-ringed cargo roof** of a delivery truck to ride it for bonus points. Green and red arrows above and below the robot show whether hopping off right now is safe. The pad flashes red when the truck is about to carry you off the playfield. **B / Shift** steps off backwards.
@@ -61,12 +64,17 @@ godot --headless --path . -s tests/run_tests.gd
 # End-to-end: a cautious bot plays the real Game scene (input, collisions, signals, deliveries,
 # background generation), then a reckless phase covers death, respawn, game over and restart
 godot --headless --path . --fixed-fps 60 res://tests/bot_playtest.tscn
+
+# Touch controls: injects real touch events in all three touch modes and checks the hops produced
+godot --headless --path . --fixed-fps 60 res://tests/touch_test.tscn
 ```
 
 Results from the build machine (Godot 4.3, Linux):
 
 * `run_tests.gd`: **315 checks, 0 failures.** Worst lane gap 1.00 s. 238 signal cycles with 0 frames where WALK showed while a vehicle was in the crosswalk. 150/150 segments validated.
 * `bot_playtest.tscn`: 240 s simulated. The careful phase made 30+ deliveries with no deaths (32–35 across runs; each run uses a random seed). The reckless phase triggered about 28 deaths and 9 game-over/restart cycles. **PASS.**
+
+* `touch_test.tscn`: **17 checks, 0 failures**, both headless and in a real 720×1280 window under Xvfb.
 
 What hasn't been checked: the game has **not been run on a physical Android phone or a Retroid Pocket 5**. Touch input, safe areas and real-device performance still need a pass on hardware. Screenshots were rendered under Xvfb with Mesa's software OpenGL.
 
@@ -100,6 +108,6 @@ tools/             audio generator, screenshot helper
 
 **Original assets.** All art is drawn in code with Godot's drawing calls (`scripts/game/art.gd` and the row renderers), so there are no image files to edit. All sound and the music loop come from `tools/gen_audio.py` (`python3 tools/gen_audio.py`, requires numpy). The icon is `icon.svg`.
 
-**Settings.** Music and SFX volume, screen-shake strength, hold-repeat delay, effects quality (Low/Medium/High), reduced flashing, high-contrast outlines, left-handed layout, hold-edge hopping, double-tap dash, Hardcore and a 30 FPS battery saver. Everything is stored offline in `user://save.cfg`; no account or internet is needed.
+**Settings.** Music and SFX volume, screen-shake strength, hold-repeat delay, effects quality (Low/Medium/High), reduced flashing, high-contrast outlines, left-handed layout, touch scheme, hold-edge hopping, double-tap dash, Hardcore and a 30 FPS battery saver. Everything is stored offline in `user://save.cfg`; no account or internet is needed.
 
 **Seeds.** Each crossing is fully defined by `(run seed, segment index, level, template)`, so a segment can be reproduced from those values when reporting a bug. Delivery Rush uses a seed derived from the date.

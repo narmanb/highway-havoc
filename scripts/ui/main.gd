@@ -251,7 +251,24 @@ func show_settings(back: Callable) -> void:
 	v.custom_minimum_size = Vector2(600, 0)
 	v.add_theme_constant_override("separation", 12)
 	cc.add_child(v)
-	var first := _slider(v, "Music", "music_vol", 0.0, 1.0)
+	# Touch control scheme (first, it's the one players most want to change).
+	var help := UiTheme.label("", 22, Color("c9d1e8"))
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help.custom_minimum_size = Vector2(600, 0)
+	var tb := UiTheme.button("", func(): pass, 88)
+	var refresh_touch := func():
+		var tm: String = GameState.settings["touch_mode"]
+		tb.text = "Touch: %s" % GameState.TOUCH_MODE_NAMES[tm]
+		help.text = GameState.TOUCH_MODE_HELP[tm]
+	refresh_touch.call()
+	tb.pressed.connect(func():
+		var i := GameState.TOUCH_MODES.find(GameState.settings["touch_mode"])
+		GameState.set_setting("touch_mode", GameState.TOUCH_MODES[(i + 1) % GameState.TOUCH_MODES.size()])
+		refresh_touch.call())
+	v.add_child(tb)
+	v.add_child(help)
+	var first := tb
+	_slider(v, "Music", "music_vol", 0.0, 1.0)
 	_slider(v, "Sound effects", "sfx_vol", 0.0, 1.0)
 	_slider(v, "Screen shake", "shake", 0.0, 1.5)
 	_slider(v, "Hold-repeat delay", "repeat_rate", 0.10, 0.30)

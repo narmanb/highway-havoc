@@ -40,6 +40,9 @@ jobs:
       - name: Logic tests
         run: godot --headless --path . -s tests/run_tests.gd
 
+      - name: Touch controls test
+        run: godot --headless --path . --fixed-fps 60 res://tests/touch_test.tscn
+
       - name: Bot playtest
         run: godot --headless --path . --fixed-fps 60 res://tests/bot_playtest.tscn
 

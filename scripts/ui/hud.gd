@@ -13,6 +13,8 @@ var rush_lbl: Label
 var banner_lbl: Label
 var _banner_t := 0.0
 var _margins := {}
+var _taps: Array = []          # [pos, dir, life] touch feedback markers
+var _dpad_dir := Vector2i.ZERO
 
 
 func setup(p_game: Game) -> void:
@@ -28,7 +30,7 @@ func setup(p_game: Game) -> void:
 	for l in [score_lbl, best_lbl, info_lbl, hint_lbl, rush_lbl, banner_lbl]:
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(l)
-	hint_lbl.text = "SWIPE  or  TAP  TO HOP" if not GameState.last_device_pad else "D-PAD TO HOP   A TO DASH"
+	hint_lbl.text = _hint_text()
 	dash_btn = Button.new()
 	dash_btn.text = "DASH"
 	dash_btn.focus_mode = Control.FOCUS_NONE
@@ -45,8 +47,31 @@ func setup(p_game: Game) -> void:
 	add_child(pause_btn)
 	game.input.exclusion = [dash_btn, pause_btn]
 	game.delivered.connect(_on_delivered)
+	game.input.touch_feedback.connect(_on_touch_feedback)
 	get_viewport().size_changed.connect(_layout)
+	GameState.settings_changed.connect(_layout)
 	_layout()
+
+
+func _hint_text() -> String:
+	if GameState.last_device_pad:
+		return "D-PAD TO HOP   A TO DASH"
+	match game.input.touch_mode():
+		"relative": return "TAP AROUND THE ROBOT TO HOP"
+		"dpad": return "USE THE D-PAD TO HOP"
+	return "SWIPE  or  TAP  TO HOP"
+
+
+func _dpad_mode() -> bool:
+	return game.input.touch_mode() == "dpad" and not GameState.last_device_pad
+
+
+func _on_touch_feedback(pos: Vector2, d: Vector2i) -> void:
+	if _dpad_mode():
+		_dpad_dir = d
+	_taps.append([pos, d, 0.3])
+	if _taps.size() > 4:
+		_taps.pop_front()
 
 
 func _layout() -> void:
@@ -73,6 +98,17 @@ func _layout() -> void:
 	pause_btn.size = pause_btn.custom_minimum_size
 	dash_btn.position = Vector2((side_l if lh else side_r - 150.0), bottom - 150.0)
 	pause_btn.position = Vector2((side_l if lh else side_r - 96.0), top)
+	var r := 125.0
+	if game.input.touch_mode() == "dpad":
+		# D-pad under the steering thumb, dash on the other side.
+		var cx: float = (side_l + r) if lh else (side_r - r)
+		game.input.dpad_center = Vector2(cx, bottom - r)
+		game.input.dpad_radius = r
+		dash_btn.position = Vector2((side_r - 150.0) if lh else side_l, bottom - 150.0)
+	else:
+		game.input.dpad_radius = 0.0
+	if hint_lbl:
+		hint_lbl.text = _hint_text()
 
 
 func _on_delivered(info: Dictionary) -> void:
@@ -100,6 +136,12 @@ func _process(dt: float) -> void:
 	hint_lbl.visible = not game.has_moved
 	if hint_lbl.visible:
 		hint_lbl.modulate.a = 0.6 + 0.4 * sin(game.anim_time * 4.0)
+	for tp in _taps:
+		tp[2] -= dt
+	while not _taps.is_empty() and _taps[0][2] <= 0.0:
+		_taps.pop_front()
+	if _dpad_mode() and game.input._touches.is_empty():
+		_dpad_dir = Vector2i.ZERO
 	if _banner_t > 0.0:
 		_banner_t -= dt
 		banner_lbl.modulate.a = clampf(_banner_t / 0.4, 0.0, 1.0)
@@ -126,6 +168,18 @@ func _draw() -> void:
 	draw_rect(Rect2(bx - 3, by - 3, w + 6, 16), UiTheme.INK)
 	draw_rect(Rect2(bx, by, w, 10), Color("2a2f40"))
 	draw_rect(Rect2(bx, by, w * frac, 10), Color("ff5d5d").lerp(Color("3dff6e"), frac))
+	if _dpad_mode():
+		_draw_dpad(game.input.dpad_center, game.input.dpad_radius)
+	# Touch feedback: a ring where you touched and an arrow for the hop it chose.
+	for tp in _taps:
+		var a: float = clampf(tp[2] / 0.3, 0.0, 1.0)
+		var p: Vector2 = tp[0]
+		draw_arc(p, 34.0 - 14.0 * a, 0, TAU, 24, Color(1, 1, 1, 0.5 * a), 4.0)
+		if game.input.touch_mode() == "relative":
+			var d: Vector2i = tp[1]
+			var v := Vector2(d.x, -d.y)
+			var rp: Vector2 = game._player_screen_pos() + v * 58.0
+			_arrow(rp, v, 16.0, Color(1, 0.84, 0.25, 0.9 * a))
 	# Dash pips over the button
 	if dash_btn.visible:
 		var c := dash_btn.position + dash_btn.size * 0.5
@@ -134,6 +188,28 @@ func _draw() -> void:
 			var p := c + Vector2(cos(a), sin(a)) * 92.0
 			draw_circle(p, 10.0, UiTheme.INK)
 			draw_circle(p, 7.0, UiTheme.YELLOW if i < game.dash_charges else Color("3a3f50"))
+
+
+func _arrow(c: Vector2, v: Vector2, s: float, col: Color) -> void:
+	var side := Vector2(-v.y, v.x)
+	var pts := PackedVector2Array([c + v * s, c - v * s * 0.6 + side * s, c - v * s * 0.6 - side * s])
+	draw_colored_polygon(pts, col)
+
+
+func _draw_dpad(c: Vector2, r: float) -> void:
+	draw_circle(c, r + 6.0, Color(0, 0, 0, 0.22))
+	draw_circle(c, r, Color(1, 1, 1, 0.07))
+	var arm := r * 0.36
+	for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		var v := Vector2(d.x, -d.y)
+		var side := Vector2(-v.y, v.x)
+		var lit: bool = _dpad_dir == d
+		var body := PackedVector2Array([c + side * arm * 0.95 + v * arm * 0.6, c + side * arm * 0.95 + v * r * 0.92,
+			c - side * arm * 0.95 + v * r * 0.92, c - side * arm * 0.95 + v * arm * 0.6])
+		draw_colored_polygon(body, Color(1, 0.84, 0.25, 0.75) if lit else Color(0.18, 0.21, 0.31, 0.62))
+		draw_polyline(body + PackedVector2Array([body[0]]), Color(0.04, 0.05, 0.09, 0.7), 3.0)
+		_arrow(c + v * r * 0.7, v, 13.0, Color(0.06, 0.07, 0.1, 0.9) if lit else Color(1, 1, 1, 0.85))
+	draw_circle(c, arm * 0.9, Color(0.18, 0.21, 0.31, 0.62))
 
 
 func _heart(c: Vector2, full: bool) -> void:

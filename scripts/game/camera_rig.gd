@@ -4,7 +4,10 @@ extends Camera2D
 ## The robot sits ~68% down the screen, so in portrait ~11 rows ahead are visible
 ## and in landscape the same lane depth is kept while more side space is shown.
 
-const PLAYER_SCREEN_FRAC := 0.68
+## Where the robot sits vertically. The D-pad mode lifts it a little so the pad
+## never covers the lane just behind the robot.
+func player_screen_frac() -> float:
+	return 0.6 if GameState.settings.get("touch_mode", "swipe") == "dpad" and not GameState.last_device_pad else 0.68
 
 var _shake := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -15,7 +18,7 @@ func view_size() -> Vector2:
 
 
 func target_for(world_y: float) -> float:
-	return world_y - view_size().y * (PLAYER_SCREEN_FRAC - 0.5)
+	return world_y - view_size().y * (player_screen_frac() - 0.5)
 
 
 func snap_to(world_y: float) -> void:

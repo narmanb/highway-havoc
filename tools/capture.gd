@@ -20,6 +20,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	match shot:
 		"game", "ride": main.start_game("arcade")
+		"dpad", "relative":
+			GameState.settings["touch_mode"] = shot
+			main.start_game("arcade")
 		"rush": main.start_game("rush")
 		"settings": main.show_settings(main.show_title)
 		"garage": main.show_garage()
@@ -32,6 +35,16 @@ func _process(dt: float) -> void:
 	if shot == "game" and main.game and main.game.player and t > 0.8 and int(t * 10) % 7 == 0:
 		var p = main.game.player
 		if p.state == 0 and p.row < 3: main.game._on_move(Vector2i(0, 1))
+	if shot == "relative" and main.game and absf(t - (wait - 0.12)) < dt * 0.6:
+		var e := InputEventScreenTouch.new()
+		e.pressed = true
+		e.position = get_viewport().get_final_transform() * (main.game._player_screen_pos() + Vector2(-230, 60))
+		Input.parse_input_event(e)
+	if shot == "dpad" and main.game and absf(t - (wait - 0.05)) < dt * 0.6:
+		var e2 := InputEventScreenTouch.new()
+		e2.pressed = true
+		e2.position = get_viewport().get_final_transform() * (main.game.input.dpad_center + Vector2(-80, 0))
+		Input.parse_input_event(e2)
 	if t >= wait and not done:
 		done = true
 		var img := get_viewport().get_texture().get_image()
